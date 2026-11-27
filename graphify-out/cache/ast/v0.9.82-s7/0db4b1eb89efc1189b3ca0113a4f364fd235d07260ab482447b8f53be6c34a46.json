@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_gemoji_lib_tasks_emoji_rake", "label": "emoji.rake", "file_type": "code", "source_file": "gemoji/lib/tasks/emoji.rake", "source_location": "L1", "metadata": {"ruby_resolution_schema": 1}}], "edges": [], "raw_calls": []}

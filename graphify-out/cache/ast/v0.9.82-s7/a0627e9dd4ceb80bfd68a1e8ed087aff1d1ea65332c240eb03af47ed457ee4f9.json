@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_app_static_common_choosealicense_com_script_generate_docs", "label": "generate-docs", "file_type": "code", "source_file": "app/static/common/choosealicense.com/script/generate-docs", "source_location": "L1", "metadata": {"ruby_resolution_schema": 1}}], "edges": [], "raw_calls": []}

@@ -14,7 +14,7 @@ import {
 import * as Fs from 'fs'
 
 import { AppWindow } from './app-window'
-import { buildDefaultMenu, getAllMenuItems } from './menu'
+import { buildDefaultMenu, getAllMenuItems, setNewWindowHandler } from './menu'
 import { shellNeedsPatching, updateEnvironmentForProcess } from '../lib/shell'
 import { parseAppURL } from '../lib/parse-app-url'
 import {
@@ -55,7 +55,9 @@ import {
 import { initializeDesktopNotifications } from './notifications'
 import parseCommandLineArgs from 'minimist'
 import { CLIAction } from '../lib/cli-action'
+import { setupAppSingleDirectory } from '../lib/single-directory'
 
+setupAppSingleDirectory()
 app.setAppLogsPath()
 enableSourceMaps()
 
@@ -877,8 +879,9 @@ app.on(
   }
 )
 
-function createWindow() {
+function createWindow(): AppWindow {
   const window = new AppWindow()
+  allWindows.push(window)
 
   if (__DEV__) {
     const {
@@ -899,8 +902,12 @@ function createWindow() {
   }
 
   window.onClosed(() => {
-    mainWindow = null
-    if (!__DARWIN__ && !preventQuit) {
+    const idx = allWindows.indexOf(window)
+    if (idx !== -1) {
+      allWindows.splice(idx, 1)
+    }
+
+    if (allWindows.length === 0 && !__DARWIN__ && !preventQuit) {
       app.quit()
     }
   })
@@ -913,16 +920,18 @@ function createWindow() {
       rendererReadyTime: window.rendererReadyTime!,
     })
 
-    const fns = onDidLoadFns!
-    onDidLoadFns = null
-    for (const fn of fns) {
-      fn(window)
+    if (onDidLoadFns) {
+      const fns = onDidLoadFns
+      onDidLoadFns = null
+      for (const fn of fns) {
+        fn(window)
+      }
     }
   })
 
   window.load()
 
-  mainWindow = window
+  return window
 }
 
 /**
@@ -933,8 +942,13 @@ function onDidLoad(fn: OnDidLoadFn) {
   if (onDidLoadFns) {
     onDidLoadFns.push(fn)
   } else {
-    if (mainWindow) {
-      fn(mainWindow)
+    const window = getActiveWindow()
+    if (window) {
+      fn(window)
     }
   }
 }
+
+setNewWindowHandler(() => {
+  createWindow()
+})

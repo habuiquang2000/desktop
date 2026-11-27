@@ -915,16 +915,17 @@ export class CloneRepository extends React.Component<
     defaultBranch?: string
   ) {
     const { account, mirror } = request
+    const mirrorOption = mirror !== undefined ? { mirror } : {}
     this.props.dispatcher.clone(
       url,
       path,
       account === null
-        ? { defaultBranch, fromCloneDialog: true, mirror }
+        ? { defaultBranch, fromCloneDialog: true, ...mirrorOption }
         : {
             defaultBranch,
             account: { endpoint: account.endpoint, login: account.login },
             fromCloneDialog: true,
-            mirror,
+            ...mirrorOption,
           }
     )
     this.props.onDismissed()

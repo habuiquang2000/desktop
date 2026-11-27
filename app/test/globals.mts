@@ -40,8 +40,20 @@ Object.assign(globalThis, {
   BroadcastChannel: undefined,
 })
 
+// Suppress known Testing Library warning for React 16.8 awaitable act
+const originalConsoleError = console.error
+console.error = (...args: any[]) => {
+  if (
+    typeof args[0] === 'string' &&
+    args[0].includes('supports the "act" function, but not an awaitable version of "act"')
+  ) {
+    return
+  }
+  originalConsoleError.apply(console, args)
+}
+
 mock.module('electron', {
-  namedExports: {
+  exports: {
     shell: {
       // Consumed through `app-shell`'s `openPath`, which binds this eagerly at
       // import time, so it has to exist here for tests to be able to mock it.

@@ -9886,7 +9886,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
         log.warn(
           `GitHub API sync-fork failed, falling back to local git: ${apiErr}`
         )
-        if (apiErr instanceof APIError && apiErr.response.status === 409) {
+        if (apiErr instanceof APIError && apiErr.responseStatus === 409) {
           this._setBanner({
             type: BannerType.ForkUpdateFailed,
             branch: targetBranch,

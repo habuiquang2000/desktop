@@ -35,6 +35,12 @@ export const separator: Electron.MenuItemConstructorOptions = {
   type: 'separator',
 }
 
+let newWindowHandler: (() => void) | null = null
+
+export function setNewWindowHandler(handler: () => void) {
+  newWindowHandler = handler
+}
+
 export function buildDefaultMenu(params: MenuLabelsEvent): Electron.Menu {
   return Menu.buildFromTemplate(buildDefaultMenuTemplate(params))
 }
@@ -106,6 +112,15 @@ export function buildDefaultMenuTemplate({
   const fileMenu: Electron.MenuItemConstructorOptions = {
     label: __DARWIN__ ? 'File' : '&File',
     submenu: [
+      {
+        label: __DARWIN__ ? 'New Window' : 'New &window',
+        id: 'new-window',
+        click: () => {
+          newWindowHandler?.()
+        },
+        accelerator: 'CmdOrCtrl+Shift+N',
+      },
+      separator,
       {
         label: __DARWIN__ ? 'New Repository…' : 'New &repository…',
         id: 'new-repository',

@@ -31,6 +31,10 @@ import { getUpdaterGUID } from '../lib/get-updater-guid'
 import { CLIAction } from '../lib/cli-action'
 
 export class AppWindow {
+  private static quitting = false
+  private static quittingEvenIfUpdating = false
+  private static hasRegisteredQuitListeners = false
+
   private window: Electron.BrowserWindow
   private emitter = new Emitter()
 
@@ -43,10 +47,6 @@ export class AppWindow {
 
   // See https://github.com/desktop/desktop/pull/11162
   private shouldMaximizeOnShow = false
-
-  private static quitting = false
-  private static quittingEvenIfUpdating = false
-  private static hasRegisteredQuitListeners = false
 
   public constructor() {
     const savedWindowState = windowStateKeeper({
@@ -222,17 +222,14 @@ export class AppWindow {
     })
 
     // Scope renderer-ready to this window's webContents
-    const onRendererReady = (
-      event: Electron.IpcMainEvent,
-      readyTime: number
-    ) => {
-      if (event.sender.id === this.window.webContents.id) {
-        ipcMain.off('renderer-ready', onRendererReady)
+    let isRendererReady = false
+    ipcMain.on('renderer-ready', (event, readyTime) => {
+      if (!isRendererReady && event.sender.id === this.window.webContents.id) {
+        isRendererReady = true
         this._rendererReadyTime = readyTime
         this.maybeEmitDidLoad()
       }
-    }
-    ipcMain.on('renderer-ready', onRendererReady)
+    })
 
     this.window.on('focus', () =>
       ipcWebContents.send(this.window.webContents, 'focus')
@@ -260,19 +257,16 @@ export class AppWindow {
     }
     nativeTheme.addListener('updated', onThemeUpdated)
 
-    const onUpdateBgColor = (
-      event: Electron.IpcMainEvent,
-      color: string
-    ) => {
-      if (event.sender.id === this.window.webContents.id) {
+    ipcMain.on('update-window-background-color', (event, color) => {
+      if (
+        !this.window.isDestroyed() &&
+        event.sender.id === this.window.webContents.id
+      ) {
         this.window.setBackgroundColor(color)
       }
-    }
-    ipcMain.on('update-window-background-color', onUpdateBgColor)
+    })
 
     this.window.on('closed', () => {
-      ipcMain.off('renderer-ready', onRendererReady)
-      ipcMain.off('update-window-background-color', onUpdateBgColor)
       nativeTheme.removeListener('updated', onThemeUpdated)
     })
 
