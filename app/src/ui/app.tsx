@@ -55,6 +55,8 @@ import {
   PushPullButton,
   BranchDropdown,
   WorktreeDropdown,
+  AccountSwitcherDropdown,
+  RemoteDropdown,
   RevertProgress,
 } from './toolbar'
 import { iconForRepository, OcticonSymbol } from './octicons'
@@ -126,6 +128,7 @@ import { TutorialStep, isValidTutorialStep } from '../models/tutorial-step'
 import { WorkflowPushRejectedDialog } from './workflow-push-rejected/workflow-push-rejected'
 import { SAMLReauthRequiredDialog } from './saml-reauth-required/saml-reauth-required'
 import { CreateForkDialog } from './forks/create-fork-dialog'
+import { MirrorRepositoryDialog } from './mirror-repository/mirror-repository-dialog'
 import { findContributionTargetDefaultBranch } from '../lib/branch'
 import {
   GitHubRepository,
@@ -513,6 +516,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.showRebaseDialog()
       case 'show-repository-settings':
         return this.showRepositorySettings()
+      case 'mirror-repository':
+        return this.showMirrorRepositoryDialog()
       case 'view-repository-on-github':
         return this.viewRepositoryOnGitHub()
       case 'compare-on-github':
@@ -1460,7 +1465,6 @@ export class App extends React.Component<IAppProps, IAppState> {
       }
     }
 
-    const showAppIcon = __WIN32__ && !this.state.showWelcomeFlow
     const inWelcomeFlow = this.state.showWelcomeFlow
     const inNoRepositoriesView = this.inNoRepositoriesViewState()
 
@@ -1476,10 +1480,10 @@ export class App extends React.Component<IAppProps, IAppState> {
 
     return (
       <TitleBar
-        showAppIcon={showAppIcon}
         titleBarStyle={titleBarStyle}
         windowState={this.state.windowState}
         windowZoomFactor={this.state.windowZoomFactor}
+        rightElements={this.renderAccountSwitcherTitleBarButton()}
       >
         {this.renderAppMenuBar()}
       </TitleBar>
@@ -1557,6 +1561,44 @@ export class App extends React.Component<IAppProps, IAppState> {
         })}
       </>
     )
+  }
+
+  private renderAccountSwitcherTitleBarButton(): JSX.Element | null {
+    if (this.state.showWelcomeFlow) {
+      return null
+    }
+
+    const currentFoldout = this.state.currentFoldout
+    const isOpen =
+      currentFoldout !== null &&
+      currentFoldout.type === FoldoutType.AccountSwitcher
+
+    const enableFocusTrap = this.state.currentPopup === null
+    const selectedState = this.state.selectedState
+    const currentRepository =
+      selectedState?.type === SelectionType.Repository
+        ? selectedState.repository
+        : null
+
+    return (
+      <AccountSwitcherDropdown
+        dispatcher={this.props.dispatcher}
+        accounts={this.state.accounts}
+        activeAccount={this.state.activeAccount}
+        isOpen={isOpen}
+        onDropDownStateChanged={this.onAccountSwitcherDropdownStateChanged}
+        enableFocusTrap={enableFocusTrap}
+        currentRepository={currentRepository}
+      />
+    )
+  }
+
+  private onAccountSwitcherDropdownStateChanged = (newState: DropdownState) => {
+    if (newState === 'open') {
+      this.props.dispatcher.showFoldout({ type: FoldoutType.AccountSwitcher })
+    } else {
+      this.props.dispatcher.closeFoldout(FoldoutType.AccountSwitcher)
+    }
   }
 
   private getCopilotModelsForAccount(account: Account) {
@@ -2321,6 +2363,17 @@ export class App extends React.Component<IAppProps, IAppState> {
             dispatcher={this.props.dispatcher}
             repository={popup.repository}
             account={popup.account}
+          />
+        )
+      case PopupType.MirrorRepository:
+        return (
+          <MirrorRepositoryDialog
+            key="mirror-repository"
+            dispatcher={this.props.dispatcher}
+            repository={popup.repository}
+            accounts={this.state.accounts}
+            activeAccount={this.state.activeAccount}
+            onDismissed={onPopupDismissedFn}
           />
         )
       case PopupType.CreateTag: {
@@ -3469,6 +3522,20 @@ export class App extends React.Component<IAppProps, IAppState> {
     })
   }
 
+  private showMirrorRepositoryDialog = () => {
+    const selectedState = this.state.selectedState
+    if (
+      selectedState !== null &&
+      selectedState.type === SelectionType.Repository
+    ) {
+      this.props.dispatcher.showMirrorRepositoryDialog(selectedState.repository)
+    }
+  }
+
+  private showMirrorRepositoryFor = (repository: Repository) => {
+    this.props.dispatcher.showMirrorRepositoryDialog(repository)
+  }
+
   private viewOnGitHub = (
     repository: Repository | CloningRepository | null
   ) => {
@@ -3660,6 +3727,7 @@ export class App extends React.Component<IAppProps, IAppState> {
       accounts: this.state.accounts,
       onChangeRepositoryAccount: this.changeRepositoryAccount,
       onShowRepositorySettings: this.showRepositorySettingsFor,
+      onMirrorRepository: this.showMirrorRepositoryFor,
       externalEditorLabel: this.externalEditorLabel,
       onChangeRepositoryAlias: onChangeRepositoryAlias,
       onRemoveRepositoryAlias: onRemoveRepositoryAlias,
@@ -3840,6 +3908,14 @@ export class App extends React.Component<IAppProps, IAppState> {
     }
   }
 
+  private onRemoteDropdownStateChanged = (newState: DropdownState) => {
+    if (newState === 'open') {
+      this.props.dispatcher.showFoldout({ type: FoldoutType.Remote })
+    } else {
+      this.props.dispatcher.closeFoldout(FoldoutType.Remote)
+    }
+  }
+
   private renderBranchToolbarButton(): JSX.Element | null {
     const selection = this.state.selectedState
 
@@ -3929,6 +4005,49 @@ export class App extends React.Component<IAppProps, IAppState> {
     )
   }
 
+  private renderRemoteToolbarButton(): JSX.Element | null {
+    const selection = this.state.selectedState
+
+    if (selection == null || selection.type !== SelectionType.Repository) {
+      return null
+    }
+
+    const currentFoldout = this.state.currentFoldout
+    const isOpen =
+      currentFoldout !== null && currentFoldout.type === FoldoutType.Remote
+
+    const repository = selection.repository
+    const state = selection.state
+
+    let remoteName = state.remote ? state.remote.name : null
+    const { tip } = state.branchesState
+    if (tip.kind === TipState.Valid && tip.branch.upstreamRemoteName !== null) {
+      remoteName = tip.branch.upstreamRemoteName
+    }
+
+    const activeRemote =
+      state.remotes.find(r => r.name === remoteName) ?? state.remote
+
+    const enableFocusTrap = this.state.currentPopup === null
+
+    return (
+      <RemoteDropdown
+        dispatcher={this.props.dispatcher}
+        repository={repository}
+        remote={activeRemote}
+        remotes={state.remotes}
+        isOpen={isOpen}
+        onDropDownStateChanged={this.onRemoteDropdownStateChanged}
+        enableFocusTrap={enableFocusTrap}
+        disabled={
+          isAssistedCommitRepositoryLocked(
+            selection.state.changesState.assistedCommit
+          ) || isRepositoryAffectedByAssistedCommit(repository.path)
+        }
+      />
+    )
+  }
+
   // we currently only render one banner at a time
   private renderBanner(): JSX.Element | null {
     // The inset light title bar style without the toolbar
@@ -4008,6 +4127,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         {this.renderWorktreeToolbarButton()}
         {this.renderBranchToolbarButton()}
         {this.renderPushPullToolbarButton()}
+        {this.renderRemoteToolbarButton()}
       </Toolbar>
     )
   }

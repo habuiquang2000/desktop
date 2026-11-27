@@ -40,6 +40,7 @@ import { createAuthenticatedImageTokenResolver } from './authenticated-image-tok
 import { installAliveOriginFilter } from './alive-origin-filter'
 import { installSameOriginFilter } from './same-origin-filter'
 import * as ipcMain from './ipc-main'
+import { addTrustedIPCSender } from './trusted-ipc-sender'
 import {
   getArchitecture,
   isAppRunningUnderARM64Translation,
@@ -783,8 +784,28 @@ app.on('activate', () => {
 
 app.on('web-contents-created', (event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
+    if (url === 'about:blank' || url.startsWith('about:blank')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          minWidth: 450,
+          minHeight: 350,
+          frame: true,
+          autoHideMenuBar: true,
+          backgroundColor: '#ffffff',
+          webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+          },
+        },
+      }
+    }
     log.warn(`Prevented new window to: ${url}`)
     return { action: 'deny' }
+  })
+
+  contents.on('did-create-window', (window: BrowserWindow) => {
+    addTrustedIPCSender(window.webContents)
   })
 
   // prevent link navigation within our windows
@@ -815,17 +836,13 @@ function createWindow() {
       REACT_DEVELOPER_TOOLS,
     } = require('electron-devtools-installer')
 
-    const axeDevTools = {
-      id: 'lhdoppojpmngadmnindnejefpokejbdd',
-    }
-
-    const extensions = [REACT_DEVELOPER_TOOLS, axeDevTools]
+    const extensions = [REACT_DEVELOPER_TOOLS]
 
     try {
       installExtension(extensions, {
         loadExtensionOptions: { allowFileAccess: true },
       })
-      console.log('Added Extensions: "React Developer Tools", "axe DevTools"')
+      console.log('Added Extensions: "React Developer Tools"')
     } catch (e) {
       console.log('An error occurred while loading extensions: ', e)
     }

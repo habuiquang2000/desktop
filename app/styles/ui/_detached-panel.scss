@@ -1,0 +1,272 @@
+@import '../variables';
+
+// Controls on the attached panel (Pop Out button & Drag to Detach handle)
+.popout-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+
+  .drag-to-detach-handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 6px;
+    height: 26px;
+    border-radius: var(--border-radius);
+    border: 1px dashed var(--box-border-color);
+    background: var(--box-alt-background-color);
+    color: var(--text-secondary-color);
+    font-size: var(--font-size-sm);
+    cursor: grab;
+    user-select: none;
+    transition: all 0.15s ease-in-out;
+
+    &:hover {
+      background: var(--box-background-color);
+      border-color: var(--focus-color);
+      color: var(--text-color);
+    }
+
+    &.dragging {
+      cursor: grabbing;
+      background: var(--box-background-color);
+      border-style: solid;
+      border-color: var(--focus-color);
+      box-shadow: 0 0 4px var(--focus-color);
+    }
+
+    &.threshold-reached {
+      border-color: var(--green-color, #28a745);
+      background: rgba(40, 167, 69, 0.15);
+      color: var(--green-color, #28a745);
+    }
+
+    .handle-label {
+      font-size: 11px;
+      font-weight: 500;
+    }
+  }
+
+  .popout-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    height: 26px;
+    font-size: var(--font-size-sm);
+    background: transparent;
+    border: 1px solid var(--box-border-color);
+    border-radius: var(--border-radius);
+    color: var(--text-secondary-color);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+
+    &:hover {
+      background: var(--box-alt-background-color);
+      border-color: var(--focus-color);
+      color: var(--text-color);
+    }
+
+    .popout-label {
+      font-size: 11px;
+      font-weight: 500;
+    }
+  }
+
+  &.compact {
+    .drag-to-detach-handle,
+    .popout-button {
+      padding: 3px 5px;
+    }
+  }
+}
+
+.tab-bar-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+  background: var(--background-color);
+
+  .tab-bar {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sidebar-popout-controls {
+    padding: 0 6px;
+    flex-shrink: 0;
+  }
+}
+
+// Drag ghost overlay shown while user is dragging the handle
+.drag-to-detach-ghost-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 99999;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.1);
+
+  .drag-to-detach-ghost {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: var(--box-background-color);
+    color: var(--text-color);
+    border: 2px dashed var(--focus-color);
+    border-radius: 8px;
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    transform: scale(0.98);
+    transition: all 0.15s ease-in-out;
+
+    &.ready {
+      border-style: solid;
+      border-color: var(--green-color, #28a745);
+      background: var(--green-color, #28a745);
+      color: #ffffff;
+      transform: scale(1.05);
+      box-shadow: 0 10px 30px rgba(40, 167, 69, 0.4);
+    }
+  }
+}
+
+// Detached external floating window styles
+body.detached-window-body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--background-color);
+  color: var(--text-color);
+
+  .detached-panel-root,
+  .detached-window-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .detached-window-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 40px;
+    padding: 0 16px;
+    background: var(--box-alt-background-color);
+    border-bottom: 1px solid var(--box-border-color);
+    flex-shrink: 0;
+
+    .title-area {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .detached-title-icon {
+        color: var(--focus-color);
+      }
+
+      .detached-title-text {
+        font-weight: 600;
+        font-size: var(--font-size-md);
+      }
+    }
+
+    .dock-back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--font-size-sm);
+      padding: 4px 12px;
+    }
+  }
+
+  .detached-window-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    // Expand inner components cleanly
+    .diff-container,
+    .code-editor-container,
+    #diff,
+    #repository-sidebar {
+      width: 100% !important;
+      max-width: none !important;
+      height: 100% !important;
+      flex: 1 1 auto;
+    }
+  }
+}
+
+// In-app placeholder when the panel is popped out
+.detached-panel-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  height: 100%;
+  width: 100%;
+  text-align: center;
+  border: 1px dashed var(--box-border-color);
+  border-radius: var(--border-radius);
+  background: var(--box-alt-background-color);
+
+  .placeholder-icon {
+    width: 48px;
+    height: 48px;
+    color: var(--text-secondary-color);
+    margin-bottom: 16px;
+    opacity: 0.7;
+  }
+
+  .placeholder-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--text-color);
+  }
+
+  .placeholder-subtitle {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary-color);
+    max-width: 420px;
+    line-height: 1.5;
+    margin-bottom: 24px;
+  }
+
+  .placeholder-actions {
+    .dock-back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      font-size: var(--font-size-md);
+    }
+  }
+}
+
+.attached-panel-container,
+.detached-panel-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}

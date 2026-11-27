@@ -27,6 +27,8 @@ import { Emoji } from '../../lib/emoji'
 import { enableAccessibleListToolTips } from '../../lib/feature-flag'
 import { TooltippedContent } from '../lib/tooltipped-content'
 import { formatDate } from '../../lib/format-date'
+import { ICommitGraphRow } from '../../lib/git-tree'
+import { CommitTreeRow } from './commit-tree-row'
 
 interface ICommitProps {
   readonly gitHubRepository: GitHubRepository | null
@@ -50,6 +52,10 @@ interface ICommitProps {
   readonly unpushedIndicatorTitle?: string
   readonly accounts: ReadonlyArray<Account>
   readonly preferAbsoluteDates: boolean
+  /** Visual Git tree layout row if enabled */
+  readonly graphRow?: ICommitGraphRow
+  /** Visual Git tree width */
+  readonly graphWidth?: number
 }
 
 interface ICommitListItemState {
@@ -152,6 +158,13 @@ export class CommitListItem extends React.PureComponent<
           onMouseLeave={this.onMouseLeave}
           onMouseUp={this.onMouseUp}
         >
+          {this.props.graphRow !== undefined &&
+            this.props.graphWidth !== undefined && (
+              <CommitTreeRow
+                graphRow={this.props.graphRow}
+                width={this.props.graphWidth}
+              />
+            )}
           <div className="info">
             <RichText
               className={summaryClassNames}

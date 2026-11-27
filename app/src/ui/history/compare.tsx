@@ -20,6 +20,7 @@ import { TabBar } from '../tab-bar'
 import { CompareBranchListItem } from './compare-branch-list-item'
 import { FancyTextBox } from '../lib/fancy-text-box'
 import * as octicons from '../octicons/octicons.generated'
+import { Octicon } from '../octicons'
 import { SelectionSource } from '../lib/filter-list'
 import { IMatches } from '../../lib/fuzzy-find'
 import { Ref } from '../lib/ref'
@@ -75,10 +76,83 @@ interface ICompareSidebarState {
 
   /** Data to be reordered via keyboard */
   readonly keyboardReorderData?: KeyboardInsertionData
+
+  /** Whether to show the suggestions popover below the search input */
+  readonly showSuggestions: boolean
 }
 
 /** If we're within this many rows from the bottom, load the next history batch. */
 const CloseToBottomThreshold = 10
+
+interface IAuthorSuggestionItemProps {
+  readonly author: {
+    readonly name: string
+    readonly email: string
+    readonly count: number
+  }
+  readonly onSelect: (name: string) => void
+}
+
+class AuthorSuggestionItem extends React.PureComponent<IAuthorSuggestionItemProps> {
+  private onMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    this.props.onSelect(this.props.author.name)
+  }
+
+  public render() {
+    const { author } = this.props
+    return (
+      <button
+        type="button"
+        className="suggestion-item"
+        onMouseDown={this.onMouseDown}
+      >
+        <Octicon className="suggestion-icon" symbol={octicons.person} />
+        <div className="suggestion-content">
+          <span className="suggestion-title">{author.name}</span>
+          <span className="suggestion-subtitle">
+            {author.email} ({author.count} commit
+            {author.count === 1 ? '' : 's'})
+          </span>
+        </div>
+      </button>
+    )
+  }
+}
+
+interface ICommitSuggestionItemProps {
+  readonly commit: Commit
+  readonly onSelect: (commit: Commit) => void
+}
+
+class CommitSuggestionItem extends React.PureComponent<ICommitSuggestionItemProps> {
+  private onMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    this.props.onSelect(this.props.commit)
+  }
+
+  public render() {
+    const { commit } = this.props
+    return (
+      <button
+        type="button"
+        className="suggestion-item"
+        onMouseDown={this.onMouseDown}
+      >
+        <Octicon className="suggestion-icon" symbol={octicons.gitCommit} />
+        <div className="suggestion-content">
+          <div className="suggestion-title">
+            <span className="suggestion-sha">{commit.shortSha}</span>
+            <span>{commit.summary}</span>
+          </div>
+          <span className="suggestion-subtitle">
+            {commit.author.name} · {commit.author.date.toLocaleDateString()}
+          </span>
+        </div>
+      </button>
+    )
+  }
+}
 
 export class CompareSidebar extends React.Component<
   ICompareSidebarProps,
@@ -94,7 +168,10 @@ export class CompareSidebar extends React.Component<
   public constructor(props: ICompareSidebarProps) {
     super(props)
 
-    this.state = { focusedBranch: null }
+    this.state = {
+      focusedBranch: null,
+      showSuggestions: false,
+    }
   }
 
   public componentWillReceiveProps(nextProps: ICompareSidebarProps) {
@@ -163,27 +240,39 @@ export class CompareSidebar extends React.Component<
 
   public render() {
     const { branches, filterText, showBranchList } = this.props.compareState
-    const placeholderText = getPlaceholderText(this.props.compareState)
+    const isHistoryMode =
+      this.props.compareState.formState.kind === HistoryTabMode.History
+    const placeholderText = isHistoryMode
+      ? __DARWIN__
+        ? 'Find Commit…'
+        : 'Find commit…'
+      : getPlaceholderText(this.props.compareState)
 
     return (
       <div id="compare-view" role="tabpanel" aria-labelledby="history-tab">
-        <div className="compare-form">
+        <div className="compare-form" style={{ position: 'relative' }}>
           <FancyTextBox
-            ariaLabel="Branch filter"
-            symbol={octicons.gitBranch}
+            ariaLabel={isHistoryMode ? 'Find commit' : 'Branch filter'}
+            symbol={isHistoryMode ? octicons.search : octicons.gitBranch}
             displayClearButton={true}
             placeholder={placeholderText}
             onFocus={this.onTextBoxFocused}
+            onBlur={this.onTextBoxBlur}
             value={filterText}
             disabled={!branches.some(b => !b.isDesktopForkRemoteBranch)}
             onRef={this.onTextBoxRef}
-            onValueChanged={this.onBranchFilterTextChanged}
-            onKeyDown={this.onBranchFilterKeyDown}
+            onValueChanged={this.onCommitFilterTextChanged}
+            onKeyDown={this.onCommitFilterKeyDown}
             onSearchCleared={this.handleEscape}
           />
+          {this.state.showSuggestions &&
+            isHistoryMode &&
+            this.renderSuggestions()}
         </div>
 
-        {showBranchList ? this.renderFilterList() : this.renderCommits()}
+        {!isHistoryMode && showBranchList
+          ? this.renderFilterList()
+          : this.renderCommits()}
       </div>
     )
   }
@@ -217,12 +306,241 @@ export class CompareSidebar extends React.Component<
     })
   }
 
+  private getFilteredCommitSHAs(): ReadonlyArray<string> {
+    const { commitSHAs, filterText } = this.props.compareState
+    const query = filterText.trim().toLowerCase()
+    if (query.length === 0) {
+      return commitSHAs
+    }
+
+    const isAuthorFilter = query.startsWith('author:')
+    const isShaFilter = query.startsWith('sha:')
+    const cleanQuery = isAuthorFilter
+      ? query.slice(7).trim()
+      : isShaFilter
+      ? query.slice(4).trim()
+      : query
+
+    return commitSHAs.filter(sha => {
+      const commit = this.props.commitLookup.get(sha)
+      if (!commit) {
+        return isShaFilter ? sha.toLowerCase().includes(cleanQuery) : false
+      }
+
+      if (isShaFilter) {
+        return (
+          commit.sha.toLowerCase().startsWith(cleanQuery) ||
+          commit.shortSha.toLowerCase().startsWith(cleanQuery)
+        )
+      }
+
+      if (isAuthorFilter) {
+        const authorMatch =
+          commit.author.name.toLowerCase().includes(cleanQuery) ||
+          commit.author.email.toLowerCase().includes(cleanQuery)
+        const committerMatch =
+          commit.committer.name.toLowerCase().includes(cleanQuery) ||
+          commit.committer.email.toLowerCase().includes(cleanQuery)
+        return authorMatch || committerMatch
+      }
+
+      // Default: match title/summary, sha, author/pusher/committer
+      const summaryMatch = commit.summary.toLowerCase().includes(cleanQuery)
+      const shaMatch =
+        commit.sha.toLowerCase().startsWith(cleanQuery) ||
+        commit.shortSha.toLowerCase().startsWith(cleanQuery)
+      const authorMatch =
+        commit.author.name.toLowerCase().includes(cleanQuery) ||
+        commit.author.email.toLowerCase().includes(cleanQuery) ||
+        commit.committer.name.toLowerCase().includes(cleanQuery) ||
+        commit.committer.email.toLowerCase().includes(cleanQuery)
+
+      return summaryMatch || shaMatch || authorMatch
+    })
+  }
+
+  private getUniqueAuthors(): ReadonlyArray<{
+    name: string
+    email: string
+    count: number
+  }> {
+    const authorMap = new Map<
+      string,
+      { name: string; email: string; count: number }
+    >()
+    for (const sha of this.props.compareState.commitSHAs) {
+      const commit = this.props.commitLookup.get(sha)
+      if (commit) {
+        const key = commit.author.name || commit.author.email
+        if (key) {
+          const existing = authorMap.get(key)
+          if (existing) {
+            existing.count++
+          } else {
+            authorMap.set(key, {
+              name: commit.author.name,
+              email: commit.author.email,
+              count: 1,
+            })
+          }
+        }
+      }
+    }
+    return Array.from(authorMap.values()).sort((a, b) => b.count - a.count)
+  }
+
+  private onAuthorChipMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    this.onSelectQualifier('author:')
+  }
+
+  private onShaChipMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    this.onSelectQualifier('sha:')
+  }
+
+  private onSelectQualifier = (qualifier: string) => {
+    this.props.dispatcher.updateCompareForm(this.props.repository, {
+      filterText: qualifier,
+    })
+    this.setState({ showSuggestions: true })
+    if (this.textbox) {
+      this.textbox.focus()
+    }
+  }
+
+  private onSelectAuthorSuggestion = (authorName: string) => {
+    this.props.dispatcher.updateCompareForm(this.props.repository, {
+      filterText: `author:${authorName}`,
+    })
+    this.setState({ showSuggestions: false })
+  }
+
+  private onSelectCommitSuggestion = (commit: Commit) => {
+    this.props.dispatcher.changeCommitSelection(
+      this.props.repository,
+      [commit.sha],
+      false
+    )
+    this.setState({ showSuggestions: false })
+  }
+
+  private renderSuggestions() {
+    const { filterText } = this.props.compareState
+    const query = filterText.trim().toLowerCase()
+    const isShaFilter = query.startsWith('sha:')
+    const isAuthorFilter = query.startsWith('author:')
+    const cleanQuery = isAuthorFilter
+      ? query.slice(7).trim()
+      : isShaFilter
+      ? query.slice(4).trim()
+      : query
+
+    const allAuthors = this.getUniqueAuthors()
+    const matchingAuthors = isShaFilter
+      ? []
+      : query.length === 0
+      ? allAuthors.slice(0, 5)
+      : allAuthors
+          .filter(
+            a =>
+              a.name.toLowerCase().includes(cleanQuery) ||
+              a.email.toLowerCase().includes(cleanQuery)
+          )
+          .slice(0, 5)
+
+    const filteredSHAs = this.getFilteredCommitSHAs()
+    const matchingCommits: Commit[] = []
+    if (query.length > 0) {
+      for (const sha of filteredSHAs) {
+        const commit = this.props.commitLookup.get(sha)
+        if (commit) {
+          matchingCommits.push(commit)
+          if (matchingCommits.length >= 5) {
+            break
+          }
+        }
+      }
+    }
+
+    const hasAnyContent =
+      matchingAuthors.length > 0 ||
+      matchingCommits.length > 0 ||
+      query.length === 0
+
+    return (
+      <div className="commit-search-suggestions">
+        {query.length === 0 && (
+          <div className="suggestions-section">
+            <div className="suggestions-header">Quick Filters</div>
+            <div className="suggestions-chips">
+              <button
+                type="button"
+                className="chip-button"
+                onMouseDown={this.onAuthorChipMouseDown}
+              >
+                <Octicon symbol={octicons.person} />
+                <span>author:</span>
+              </button>
+              <button
+                type="button"
+                className="chip-button"
+                onMouseDown={this.onShaChipMouseDown}
+              >
+                <Octicon symbol={octicons.gitCommit} />
+                <span>sha:</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {matchingAuthors.length > 0 && (
+          <div className="suggestions-section">
+            <div className="suggestions-header">
+              {query.length === 0
+                ? 'Authors in this branch'
+                : 'Matching Authors'}
+            </div>
+            {matchingAuthors.map(author => (
+              <AuthorSuggestionItem
+                key={author.name + author.email}
+                author={author}
+                onSelect={this.onSelectAuthorSuggestion}
+              />
+            ))}
+          </div>
+        )}
+
+        {matchingCommits.length > 0 && (
+          <div className="suggestions-section">
+            <div className="suggestions-header">Matching Commits</div>
+            {matchingCommits.map(commit => (
+              <CommitSuggestionItem
+                key={commit.sha}
+                commit={commit}
+                onSelect={this.onSelectCommitSuggestion}
+              />
+            ))}
+          </div>
+        )}
+
+        {!hasAnyContent && (
+          <div className="suggestion-empty">No matching suggestions</div>
+        )}
+      </div>
+    )
+  }
+
   private renderCommitList() {
-    const { formState, commitSHAs } = this.props.compareState
+    const { formState, filterText } = this.props.compareState
+    const filteredCommitSHAs = this.getFilteredCommitSHAs()
 
     let emptyListMessage: string | JSX.Element
     if (formState.kind === HistoryTabMode.History) {
-      emptyListMessage = 'No history'
+      emptyListMessage =
+        filterText.trim().length > 0
+          ? `No commits matching "${filterText.trim()}"`
+          : 'No history'
     } else {
       const currentlyComparedBranchName = formState.comparisonBranch.name
 
@@ -246,7 +564,7 @@ export class CompareSidebar extends React.Component<
         gitHubRepository={this.props.repository.gitHubRepository}
         isLocalRepository={this.props.isLocalRepository}
         commitLookup={this.props.commitLookup}
-        commitSHAs={commitSHAs}
+        commitSHAs={filteredCommitSHAs}
         selectedSHAs={this.props.selectedCommitShas}
         shasToHighlight={this.props.shasToHighlight}
         localCommitSHAs={this.props.localCommitSHAs}
@@ -497,6 +815,7 @@ export class CompareSidebar extends React.Component<
   }
 
   private handleEscape = () => {
+    this.setState({ showSuggestions: false })
     this.clearFilterState()
     if (this.textbox) {
       this.textbox.blur()
@@ -564,6 +883,7 @@ export class CompareSidebar extends React.Component<
   private clearFilterState = () => {
     this.setState({
       focusedBranch: null,
+      showSuggestions: false,
     })
 
     this.props.dispatcher.updateCompareForm(this.props.repository, {
@@ -599,10 +919,60 @@ export class CompareSidebar extends React.Component<
     })
   }
 
-  private onTextBoxFocused = () => {
+  private onCommitFilterTextChanged = (filterText: string) => {
+    this.setState({ showSuggestions: true })
     this.props.dispatcher.updateCompareForm(this.props.repository, {
-      showBranchList: true,
+      filterText,
     })
+  }
+
+  private onCommitFilterKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    const isHistoryMode =
+      this.props.compareState.formState.kind === HistoryTabMode.History
+    if (!isHistoryMode) {
+      this.onBranchFilterKeyDown(event)
+      return
+    }
+
+    const key = event.key
+
+    if (key === 'Enter') {
+      this.setState({ showSuggestions: false })
+      const filteredSHAs = this.getFilteredCommitSHAs()
+      if (filteredSHAs.length > 0) {
+        this.props.dispatcher.changeCommitSelection(
+          this.props.repository,
+          [filteredSHAs[0]],
+          false
+        )
+      }
+      if (this.textbox) {
+        this.textbox.blur()
+      }
+    } else if (key === 'Escape') {
+      this.setState({ showSuggestions: false })
+      this.handleEscape()
+    }
+  }
+
+  private onTextBoxFocused = () => {
+    const isHistoryMode =
+      this.props.compareState.formState.kind === HistoryTabMode.History
+    if (isHistoryMode) {
+      this.setState({ showSuggestions: true })
+    } else {
+      this.props.dispatcher.updateCompareForm(this.props.repository, {
+        showBranchList: true,
+      })
+    }
+  }
+
+  private onTextBoxBlur = () => {
+    window.setTimeout(() => {
+      this.setState({ showSuggestions: false })
+    }, 200)
   }
 
   private onTextBoxRef = (textbox: TextBox) => {

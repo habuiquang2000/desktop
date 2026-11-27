@@ -1,12 +1,17 @@
 import * as React from 'react'
 import { DiffHeader } from '../diff/diff-header'
+import { CodeEditor } from '../diff/code-editor'
 import {
   DiffSelection,
+  DiffType,
   IDiff,
   ImageDiffType,
   ITextDiff,
 } from '../../models/diff'
-import { WorkingDirectoryFileChange } from '../../models/status'
+import {
+  AppFileStatusKind,
+  WorkingDirectoryFileChange,
+} from '../../models/status'
 import { Repository } from '../../models/repository'
 import { Dispatcher } from '../dispatcher'
 import { SeamlessDiffSwitcher } from '../diff/seamless-diff-switcher'
@@ -54,9 +59,70 @@ interface IChangesProps {
 
   /** Called when the user opens the diff options popover */
   readonly onDiffOptionsOpened: () => void
+
+  /** Called when the user clicks or drags to pop out the diff */
+  readonly onDetachDiff?: () => void
 }
 
-export class Changes extends React.Component<IChangesProps, {}> {
+interface IChangesState {
+  readonly isCodeEditorMode: boolean
+  readonly hasUnsavedEditorChanges: boolean
+}
+
+export class Changes extends React.Component<IChangesProps, IChangesState> {
+  private codeEditorRef = React.createRef<CodeEditor>()
+
+  public constructor(props: IChangesProps) {
+    super(props)
+    this.state = {
+      isCodeEditorMode: false,
+      hasUnsavedEditorChanges: false,
+    }
+  }
+
+  public componentDidUpdate(prevProps: IChangesProps) {
+    if (prevProps.file.path !== this.props.file.path) {
+      this.setState({ hasUnsavedEditorChanges: false })
+    }
+  }
+
+  private get canEditInCodeEditor(): boolean {
+    if (this.props.file.status.kind === AppFileStatusKind.Deleted) {
+      return false
+    }
+
+    const { diff } = this.props
+    if (
+      diff !== null &&
+      (diff.kind === DiffType.Image ||
+        diff.kind === DiffType.Binary ||
+        diff.kind === DiffType.Submodule ||
+        diff.kind === DiffType.Unrenderable)
+    ) {
+      return false
+    }
+
+    return true
+  }
+
+  private onToggleCodeEditor = () => {
+    this.setState(prevState => ({
+      isCodeEditorMode: !prevState.isCodeEditorMode,
+      hasUnsavedEditorChanges: false,
+    }))
+  }
+
+  private onSaveCodeEditor = () => {
+    void this.codeEditorRef.current?.save()
+  }
+
+  private onCodeEditorDirtyChange = (hasUnsavedEditorChanges: boolean) => {
+    this.setState({ hasUnsavedEditorChanges })
+  }
+
+  private onCodeEditorSaved = () => {
+    void this.props.dispatcher.refreshRepository(this.props.repository)
+  }
   /**
    * Whether or not it's currently possible to change the line selection
    * of a diff. Changing selection is not possible while a commit is in
@@ -100,6 +166,9 @@ export class Changes extends React.Component<IChangesProps, {}> {
   }
 
   public render() {
+    const canEdit = this.canEditInCodeEditor
+    const showCodeEditor = this.state.isCodeEditorMode && canEdit
+
     return (
       <div className="diff-container">
         <DiffHeader
@@ -111,27 +180,43 @@ export class Changes extends React.Component<IChangesProps, {}> {
           hideWhitespaceInDiff={this.props.hideWhitespaceInDiff}
           onHideWhitespaceInDiffChanged={this.onHideWhitespaceInDiffChanged}
           onDiffOptionsOpened={this.props.onDiffOptionsOpened}
+          canEditInCodeEditor={canEdit}
+          isCodeEditorMode={showCodeEditor}
+          hasUnsavedEditorChanges={this.state.hasUnsavedEditorChanges}
+          onToggleCodeEditor={this.onToggleCodeEditor}
+          onSaveCodeEditor={this.onSaveCodeEditor}
+          onDetachDiff={this.props.onDetachDiff}
         />
 
-        <SeamlessDiffSwitcher
-          repository={this.props.repository}
-          imageDiffType={this.props.imageDiffType}
-          file={this.props.file}
-          readOnly={false}
-          onIncludeChanged={this.onDiffLineIncludeChanged}
-          onDiscardChanges={this.onDiscardChanges}
-          diff={this.props.diff}
-          hideWhitespaceInDiff={this.props.hideWhitespaceInDiff}
-          showSideBySideDiff={this.props.showSideBySideDiff}
-          showDiffCheckMarks={this.props.showDiffCheckMarks}
-          askForConfirmationOnDiscardChanges={
-            this.props.askForConfirmationOnDiscardChanges
-          }
-          onOpenBinaryFile={this.props.onOpenBinaryFile}
-          onOpenSubmodule={this.props.onOpenSubmodule}
-          onChangeImageDiffType={this.props.onChangeImageDiffType}
-          onHideWhitespaceInDiffChanged={this.onHideWhitespaceInDiffChanged}
-        />
+        {showCodeEditor ? (
+          <CodeEditor
+            ref={this.codeEditorRef}
+            repository={this.props.repository}
+            filePath={this.props.file.path}
+            onDirtyChange={this.onCodeEditorDirtyChange}
+            onSaved={this.onCodeEditorSaved}
+          />
+        ) : (
+          <SeamlessDiffSwitcher
+            repository={this.props.repository}
+            imageDiffType={this.props.imageDiffType}
+            file={this.props.file}
+            readOnly={false}
+            onIncludeChanged={this.onDiffLineIncludeChanged}
+            onDiscardChanges={this.onDiscardChanges}
+            diff={this.props.diff}
+            hideWhitespaceInDiff={this.props.hideWhitespaceInDiff}
+            showSideBySideDiff={this.props.showSideBySideDiff}
+            showDiffCheckMarks={this.props.showDiffCheckMarks}
+            askForConfirmationOnDiscardChanges={
+              this.props.askForConfirmationOnDiscardChanges
+            }
+            onOpenBinaryFile={this.props.onOpenBinaryFile}
+            onOpenSubmodule={this.props.onOpenSubmodule}
+            onChangeImageDiffType={this.props.onChangeImageDiffType}
+            onHideWhitespaceInDiffChanged={this.onHideWhitespaceInDiffChanged}
+          />
+        )}
       </div>
     )
   }

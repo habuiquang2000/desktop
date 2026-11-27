@@ -64,6 +64,7 @@ export class CloningRepositoriesStore extends BaseStore {
         branch: options.branch,
         defaultBranch: options.defaultBranch,
         fallbackAccount,
+        mirror: options.mirror,
       }
       await cloneRepo(url, path, cloneOptions, progress => {
         this.stateByID.set(repository.id, progress)

@@ -31,6 +31,117 @@
     flex: initial;
     padding: var(--spacing-half);
     border-bottom: var(--base-border);
+    position: relative;
+
+    .commit-search-suggestions {
+      position: absolute;
+      top: calc(100% + 2px);
+      left: var(--spacing-half);
+      right: var(--spacing-half);
+      z-index: 1000;
+      background: var(--box-background-color);
+      border: var(--base-border);
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      max-height: 360px;
+      overflow-y: auto;
+      font-size: var(--font-size-sm);
+
+      .suggestions-section {
+        padding: var(--spacing-half) 0;
+
+        &:not(:last-child) {
+          border-bottom: var(--base-border);
+        }
+      }
+
+      .suggestions-header {
+        padding: 2px var(--spacing);
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-bold);
+        color: var(--text-secondary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .suggestions-chips {
+        display: flex;
+        gap: var(--spacing-half);
+        padding: var(--spacing-half) var(--spacing);
+
+        .chip-button {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          border-radius: 12px;
+          border: var(--base-border);
+          background: var(--box-alt-background-color);
+          color: var(--text-color);
+          font-size: var(--font-size-xs);
+          cursor: pointer;
+
+          &:hover {
+            background: var(--background-color-hover);
+          }
+        }
+      }
+
+      .suggestion-item {
+        display: flex;
+        align-items: center;
+        padding: var(--spacing-half) var(--spacing);
+        cursor: pointer;
+        gap: var(--spacing-half);
+
+        &:hover {
+          background: var(--background-color-hover);
+        }
+
+        .suggestion-icon {
+          color: var(--text-secondary-color);
+          flex-shrink: 0;
+        }
+
+        .suggestion-content {
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          min-width: 0;
+        }
+
+        .suggestion-sha {
+          font-family: var(--font-family-monospace);
+          font-size: var(--font-size-xs);
+          color: var(--text-secondary-color);
+          margin-right: 6px;
+        }
+
+        .suggestion-title {
+          color: var(--text-color);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .suggestion-subtitle {
+          font-size: var(--font-size-xs);
+          color: var(--text-secondary-color);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+
+      .suggestion-empty {
+        padding: var(--spacing);
+        text-align: center;
+        color: var(--text-secondary-color);
+        font-size: var(--font-size-xs);
+      }
+    }
   }
 
   .compare-commit-list {

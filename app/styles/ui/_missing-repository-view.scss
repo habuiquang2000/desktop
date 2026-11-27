@@ -58,6 +58,29 @@
       border-radius: var(--border-radius);
       padding: var(--path-segment-padding);
     }
+
+    .copy-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: var(--spacing-half);
+      background: transparent;
+      border: none;
+      padding: 0;
+      height: auto;
+      min-width: 16px;
+      vertical-align: middle;
+      color: var(--text-secondary-color);
+
+      &:hover {
+        color: var(--text-color);
+      }
+
+      .octicon {
+        height: 14px;
+        width: 14px;
+      }
+    }
   }
 
   button {

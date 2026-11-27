@@ -10,6 +10,7 @@ import { LinkButton } from './lib/link-button'
 import { addSafeDirectory, getRepositoryType } from '../lib/git'
 import { Ref } from './lib/ref'
 import { Loading } from './lib/loading'
+import { CopyButton } from './copy-button'
 
 interface IMissingRepositoryProps {
   readonly dispatcher: Dispatcher
@@ -142,7 +143,12 @@ export class MissingRepository extends React.Component<
           <div className="title">Can't find "{this.props.repository.name}"</div>
           <div className="details">
             It was last seen at{' '}
-            <span className="path">{this.props.repository.path}</span>.{' '}
+            <span className="path">{this.props.repository.path}</span>
+            <CopyButton
+              ariaLabel="Copy path"
+              copyContent={this.props.repository.path}
+            />
+            .{' '}
             <LinkButton onClick={this.checkAgain}>Check&nbsp;again.</LinkButton>
           </div>
         </div>

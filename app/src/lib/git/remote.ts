@@ -133,6 +133,64 @@ export async function setRemoteURL(
   return true
 }
 
+/** Renames an existing remote. */
+export async function renameRemote(
+  repository: Repository,
+  oldName: string,
+  newName: string
+): Promise<void> {
+  await git(
+    ['remote', 'rename', '--', oldName, newName],
+    repository.path,
+    'renameRemote'
+  )
+}
+
+/**
+ * Switches the primary remote to the target remote.
+ *
+ * If the current primary remote is 'origin', it swaps 'origin' and the target remote
+ * so that the target remote becomes 'origin' (the default remote in Git and GitHub Desktop).
+ * If neither is 'origin', the target remote is renamed to 'origin'.
+ */
+export async function switchRemote(
+  repository: Repository,
+  currentPrimaryName: string,
+  targetRemoteName: string
+): Promise<void> {
+  if (currentPrimaryName === targetRemoteName) {
+    return
+  }
+
+  if (currentPrimaryName === 'origin') {
+    const tempName = `desktop-temp-${Date.now()}`
+    await renameRemote(repository, 'origin', tempName)
+    try {
+      await renameRemote(repository, targetRemoteName, 'origin')
+      await renameRemote(repository, tempName, targetRemoteName)
+    } catch (e) {
+      try {
+        await renameRemote(repository, tempName, 'origin')
+      } catch {}
+      throw e
+    }
+  } else if (targetRemoteName === 'origin') {
+    const tempName = `desktop-temp-${Date.now()}`
+    await renameRemote(repository, 'origin', tempName)
+    try {
+      await renameRemote(repository, currentPrimaryName, 'origin')
+      await renameRemote(repository, tempName, currentPrimaryName)
+    } catch (e) {
+      try {
+        await renameRemote(repository, tempName, 'origin')
+      } catch {}
+      throw e
+    }
+  } else {
+    await renameRemote(repository, targetRemoteName, 'origin')
+  }
+}
+
 /**
  * Get the first fetch URL for the remote, with Git's URL rewrites applied.
  *

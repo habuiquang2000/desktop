@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
 
-import { push } from '../../../src/lib/git/push'
+import { push, pushMirror } from '../../../src/lib/git/push'
 import { setupEmptyRepository } from '../../helpers/repositories'
 import { makeCommit } from '../../helpers/repository-scaffolding'
 import { IRemote } from '../../../src/models/remote'
@@ -141,5 +141,26 @@ describe('git/push', () => {
     // At minimum we should get the initial progress event
     assert.ok(progressEvents.length > 0, 'Expected at least one progress event')
     assert.equal(progressEvents[0].kind, 'push')
+  })
+
+  it('mirrors all branches and tags with pushMirror', async t => {
+    const repo = await setupEmptyRepository(t)
+    await makeCommit(repo, {
+      entries: [{ path: 'README.md', contents: 'initial' }],
+      commitMessage: 'initial commit',
+    })
+
+    await exec(['branch', 'feature-branch'], repo.path)
+    await exec(['tag', 'v1.0.0'], repo.path)
+
+    const mirrorBarePath = await createBareUpstream(t, repo)
+
+    await pushMirror(repo, mirrorBarePath)
+
+    const mirrorBranches = await exec(['branch', '--list'], mirrorBarePath)
+    assert.ok(mirrorBranches.stdout.includes('feature-branch'))
+
+    const mirrorTags = await exec(['tag', '--list'], mirrorBarePath)
+    assert.ok(mirrorTags.stdout.includes('v1.0.0'))
   })
 })

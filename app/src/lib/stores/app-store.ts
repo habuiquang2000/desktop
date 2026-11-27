@@ -1,4 +1,5 @@
 import { storePushAfterCommit } from './helpers/commit-push-storage'
+import { storeFileSelections } from './helpers/file-selection-storage'
 import { verifyRepositoryGitSpawnFence } from '../git/repository-operation'
 import { AssistedCommitCoordinator } from '../assisted-commit/coordinator'
 import { recordAssistedCommitMetric } from '../assisted-commit/metrics'
@@ -225,6 +226,7 @@ import {
   isCoAuthoredByTrailer,
   pull as pullRepo,
   push as pushRepo,
+  pushMirror,
   renameBranch,
   saveGitIgnore,
   appendIgnoreRule,
@@ -630,6 +632,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private readonly assistedCommits: AssistedCommitCoordinator
 
   private accounts: ReadonlyArray<Account> = new Array<Account>()
+  private activeAccountIdentity: IAccountIdentity | null = null
   private repositories: ReadonlyArray<Repository> = new Array<Repository>()
   private recentRepositories: ReadonlyArray<number> = new Array<number>()
 
@@ -1387,6 +1390,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
 
     return {
       accounts: this.accounts,
+      activeAccount: this.getActiveAccount(),
       repositories,
       recentRepositories: this.recentRepositories,
       localRepositoryStateLookup: this.localRepositoryStateLookup,
@@ -1586,6 +1590,7 @@ export class AppStore extends TypedBaseStore<IAppState> {
       aheadBehind: gitStore.aheadBehind,
       tagsToPush: gitStore.tagsToPush,
       remote: gitStore.currentRemote,
+      remotes: gitStore.remotes,
       lastFetched: gitStore.lastFetched,
     }))
 
@@ -2818,6 +2823,15 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.selectedTheme = getPersistedThemeName()
     // Make sure the persisted theme is applied
     setPersistedTheme(this.selectedTheme)
+
+    const activeAccountRaw = localStorage.getItem('active-account-identity')
+    if (activeAccountRaw !== null) {
+      try {
+        this.activeAccountIdentity = JSON.parse(activeAccountRaw)
+      } catch {
+        this.activeAccountIdentity = null
+      }
+    }
 
     this.currentTheme = await getCurrentlyAppliedTheme()
 
@@ -4212,6 +4226,12 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.assistedCommits.selections.retire(repository, files)
     const modifiedIds = new Set<string>(files.map(f => f.id))
 
+    storeFileSelections(
+      repository,
+      files.map(f => f.path),
+      include
+    )
+
     this.repositoryStateCache.updateChangesState(repository, state => {
       const workingDirectory = WorkingDirectoryStatus.fromFiles(
         state.workingDirectory.files.map(f =>
@@ -4268,10 +4288,15 @@ export class AppStore extends TypedBaseStore<IAppState> {
     includeAll: boolean
   ): Promise<void> {
     this.assistedCommits.state.assertAvailable(repository)
-    this.assistedCommits.selections.retire(
-      repository,
+    const files =
       this.repositoryStateCache.get(repository).changesState.workingDirectory
         .files
+    this.assistedCommits.selections.retire(repository, files)
+
+    storeFileSelections(
+      repository,
+      files.map(f => f.path),
+      includeAll
     )
     this.repositoryStateCache.updateChangesState(repository, state => {
       const workingDirectory =
@@ -8947,6 +8972,68 @@ export class AppStore extends TypedBaseStore<IAppState> {
   }
 
   /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _addRemote(
+    repository: Repository,
+    name: string,
+    url: string
+  ): Promise<IRemote> {
+    return this.withAssistedCommitMutationResources(repository, async () => {
+      this.assistedCommits.state.assertAvailable(repository)
+      return withRepositoryGitOperation(
+        repository.path,
+        'mutation',
+        async () => {
+          const gitStore = this.gitStoreCache.get(repository)
+          const remote = await gitStore.addRemote(name, url)
+          if (gitStore.defaultRemote?.name === name) {
+            await this.repositoryWithRefreshedGitHubRepository(repository)
+          }
+          return remote ?? { name, url }
+        }
+      )
+    })
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _removeRemote(
+    repository: Repository,
+    name: string
+  ): Promise<void> {
+    return this.withAssistedCommitMutationResources(repository, async () => {
+      this.assistedCommits.state.assertAvailable(repository)
+      return withRepositoryGitOperation(
+        repository.path,
+        'mutation',
+        async () => {
+          const gitStore = this.gitStoreCache.get(repository)
+          await gitStore.removeRemote(name)
+          await this.repositoryWithRefreshedGitHubRepository(repository)
+        }
+      )
+    })
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
+  public async _switchRemote(
+    repository: Repository,
+    currentPrimaryName: string,
+    targetRemoteName: string
+  ): Promise<void> {
+    return this.withAssistedCommitMutationResources(repository, async () => {
+      this.assistedCommits.state.assertAvailable(repository)
+      return withRepositoryGitOperation(
+        repository.path,
+        'mutation',
+        async () => {
+          const gitStore = this.gitStoreCache.get(repository)
+          await gitStore.switchRemote(currentPrimaryName, targetRemoteName)
+          await this.repositoryWithRefreshedGitHubRepository(repository)
+        }
+      )
+    })
+  }
+
+  /** This shouldn't be called directly. See `Dispatcher`. */
   public async _openShell(path: string) {
     this.statsStore.increment('openShellCount')
     const { useCustomShell, customShell } = this.getState()
@@ -9518,6 +9605,139 @@ export class AppStore extends TypedBaseStore<IAppState> {
       }
     }
     await this._removeAccount(account)
+  }
+
+  public getActiveAccount(): Account | null {
+    if (this.selectedRepository instanceof Repository) {
+      const repoAccount = getAccountForRepository(
+        this.accounts,
+        this.selectedRepository
+      )
+      if (repoAccount !== null) {
+        return repoAccount
+      }
+    }
+
+    if (this.activeAccountIdentity !== null) {
+      const match = this.accounts.find(a =>
+        isSameAccount(a, this.activeAccountIdentity)
+      )
+      if (match !== undefined) {
+        return match
+      }
+    }
+
+    return this.accounts.length > 0 ? this.accounts[0] : null
+  }
+
+  /**
+   * Switch the active account in the UI. If a repository on the same endpoint
+   * is selected, updates the repository's assigned account as well.
+   */
+  public async _switchActiveAccount(account: Account): Promise<void> {
+    this.activeAccountIdentity = {
+      endpoint: account.endpoint,
+      login: account.login,
+    }
+    try {
+      localStorage.setItem(
+        'active-account-identity',
+        JSON.stringify(this.activeAccountIdentity)
+      )
+    } catch (e) {
+      log.warn('Could not persist active account identity to localStorage', e)
+    }
+
+    const currentRepo = this.selectedRepository
+    if (
+      currentRepo instanceof Repository &&
+      currentRepo.gitHubRepository !== null &&
+      currentRepo.gitHubRepository.endpoint === account.endpoint
+    ) {
+      try {
+        await this._updateRepositoryAccount(currentRepo, account.login)
+      } catch (e) {
+        log.warn(
+          'Could not auto-assign switched account to current repository',
+          e
+        )
+      }
+    }
+
+    this.emitUpdate()
+  }
+
+  /**
+   * Mirror all local branches, tags, and commits to a destination URL or remote
+   * using `git push --mirror`.
+   */
+  public async _mirrorRepository(
+    repository: Repository,
+    destination: string,
+    targetAccount?: Account | null,
+    saveAsRemote = true,
+    autoSync = false
+  ): Promise<void> {
+    const gitStore = this.gitStoreCache.get(repository)
+    const title = `Mirroring ${repository.name}`
+
+    this.updatePushPullFetchProgress(repository, {
+      kind: 'push',
+      title,
+      value: 0,
+      remote: destination,
+      branch: 'all',
+    })
+
+    const targetIdentity = targetAccount
+      ? { endpoint: targetAccount.endpoint, login: targetAccount.login }
+      : undefined
+
+    try {
+      await pushMirror(
+        repository,
+        destination,
+        {
+          fallbackAccount: targetIdentity,
+        },
+        progress => {
+          this.updatePushPullFetchProgress(repository, {
+            ...progress,
+            title,
+          })
+        }
+      )
+
+      if (saveAsRemote) {
+        const remotes = await getRemotes(repository)
+        const mirrorRemote = remotes.find(r => r.name === 'mirror')
+        if (mirrorRemote !== undefined) {
+          await gitStore.setRemoteURL('mirror', destination)
+        } else {
+          await addRemote(repository, 'mirror', destination)
+          await gitStore.loadRemotes()
+        }
+
+        await setConfigValue(
+          repository,
+          'desktop.mirror-auto-sync',
+          autoSync ? 'true' : 'false'
+        )
+      }
+
+      this._setBanner({
+        type: BannerType.SuccessfulMirror,
+        destinationUrl: destination,
+      })
+    } catch (e) {
+      log.error(
+        `Failed to mirror repository ${repository.name} to ${destination}`,
+        e
+      )
+      throw e
+    } finally {
+      this.updatePushPullFetchProgress(repository, null)
+    }
   }
 
   /** This shouldn't be called directly. See 'Dispatcher'. */

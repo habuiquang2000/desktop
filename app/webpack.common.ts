@@ -15,6 +15,16 @@ const commonConfig: webpack.Configuration = {
   optimization: {
     emitOnErrors: false,
   },
+  ignoreWarnings: [
+    {
+      module: /@github[\\/]copilot-sdk/,
+      message: /module\.createRequire/,
+    },
+    {
+      module: /koffi/,
+      message: /Critical dependency/,
+    },
+  ],
   externals: externals,
   output: {
     filename: '[name].js',

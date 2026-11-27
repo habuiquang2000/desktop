@@ -1,6 +1,7 @@
 import {
   WorkingDirectoryStatus,
   WorkingDirectoryFileChange,
+  AppFileStatusKind,
 } from '../../../models/status'
 import { IStatusResult } from '../../git'
 import {
@@ -18,6 +19,8 @@ import { caseInsensitiveCompare } from '../../compare'
 import { IStatsStore } from '../../stats/stats-store'
 import { ManualConflictResolution } from '../../../models/manual-conflict-resolution'
 import { assertNever } from '../../fatal-error'
+import { Repository } from '../../../models/repository'
+import { getRememberedFileSelections } from '../helpers/file-selection-storage'
 
 /**
  * Internal shape of the return value from this response because the compiler
@@ -32,11 +35,16 @@ type ChangedFilesResult = {
 export function updateChangedFiles(
   state: IChangesState,
   status: IStatusResult,
-  clearPartialState: boolean
+  clearPartialState: boolean,
+  repository?: Repository
 ): ChangedFilesResult {
   // Populate a map for all files in the current working directory state
   const filesByID = new Map<string, WorkingDirectoryFileChange>()
   state.workingDirectory.files.forEach(f => filesByID.set(f.id, f))
+
+  const rememberedSelections = repository
+    ? getRememberedFileSelections(repository)
+    : undefined
 
   // Attempt to preserve the selection state for each file in the new
   // working directory state by looking at the current files
@@ -54,6 +62,22 @@ export function updateChangedFiles(
         }
 
         return file.withSelection(existingFile.selection)
+      } else if (repository && rememberedSelections) {
+        const oldPath =
+          file.status.kind === AppFileStatusKind.Renamed ||
+          file.status.kind === AppFileStatusKind.Copied
+            ? file.status.oldPath
+            : undefined
+        const remembered =
+          rememberedSelections[file.path] ??
+          (oldPath ? rememberedSelections[oldPath] : undefined)
+
+        if (remembered !== undefined) {
+          return file.withIncludeAll(remembered)
+        }
+
+        // Newly changed file (unrecorded / from AI) -> auto unmark
+        return file.withIncludeAll(false)
       } else {
         return file
       }

@@ -6,6 +6,8 @@ import {
   addRemote,
   removeRemote,
   setRemoteURL,
+  renameRemote,
+  switchRemote,
 } from '../../../src/lib/git/remote'
 import {
   setupFixtureRepository,
@@ -192,6 +194,58 @@ describe('git/remote', () => {
       const remotes = await getRemotes(repository)
       assert.equal(remotes.length, 1)
       assert.equal(remotes[0].url, remoteUrl)
+    })
+  })
+
+  describe('renameRemote', () => {
+    it('renames an existing remote', async t => {
+      const repository = await setupEmptyRepository(t)
+      await addRemote(repository, 'upstream', 'https://github.com/foo/bar.git')
+      await renameRemote(repository, 'upstream', 'origin')
+
+      const remotes = await getRemotes(repository)
+      assert.equal(remotes.length, 1)
+      assert.equal(remotes[0].name, 'origin')
+      assert.equal(remotes[0].url, 'https://github.com/foo/bar.git')
+    })
+  })
+
+  describe('switchRemote', () => {
+    it('swaps origin and target remote', async t => {
+      const repository = await setupEmptyRepository(t)
+      await addRemote(
+        repository,
+        'origin',
+        'https://github.com/desktop/desktop.git'
+      )
+      await addRemote(
+        repository,
+        'upstream',
+        'https://github.com/fork/desktop.git'
+      )
+
+      await switchRemote(repository, 'origin', 'upstream')
+
+      const remotes = await getRemotes(repository)
+      assert.equal(remotes.length, 2)
+      const origin = remotes.find(r => r.name === 'origin')
+      const upstream = remotes.find(r => r.name === 'upstream')
+
+      assert(origin !== undefined)
+      assert(upstream !== undefined)
+      assert.equal(origin.url, 'https://github.com/fork/desktop.git')
+      assert.equal(upstream.url, 'https://github.com/desktop/desktop.git')
+
+      // Switching again swaps back
+      await switchRemote(repository, 'origin', 'upstream')
+      const remotesAfter = await getRemotes(repository)
+      const originAfter = remotesAfter.find(r => r.name === 'origin')
+      const upstreamAfter = remotesAfter.find(r => r.name === 'upstream')
+
+      assert(originAfter !== undefined)
+      assert(upstreamAfter !== undefined)
+      assert.equal(originAfter.url, 'https://github.com/desktop/desktop.git')
+      assert.equal(upstreamAfter.url, 'https://github.com/fork/desktop.git')
     })
   })
 })

@@ -447,7 +447,12 @@ export class AssistedCommitReaders {
               workingDirectory:
                 status.workingDirectory.withIncludeAllFiles(false),
             }
-      return updateChangedFiles(state, fresh, clearPartialState)
+      return updateChangedFiles(
+        state,
+        fresh,
+        clearPartialState,
+        repository
+      )
     })
 
     await publish(status)

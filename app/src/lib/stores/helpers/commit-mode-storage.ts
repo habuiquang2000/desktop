@@ -3,14 +3,12 @@ import { Repository } from '../../../models/repository'
 
 /** Store the commit mode for this repository, independently of other repos. */
 export function storeCommitMode(repository: Repository, mode: CommitMode) {
-  localStorage.setItem(getCommitModeKey(repository), mode)
+  localStorage.setItem(getCommitModeKey(repository), 'manual')
 }
 
 /** Restore the repository's commit mode, defaulting to manual for unknown values. */
 export function getCommitMode(repository: Repository): CommitMode {
-  return localStorage.getItem(getCommitModeKey(repository)) === 'copilot'
-    ? 'copilot'
-    : 'manual'
+  return 'manual'
 }
 
 function getCommitModeKey(repository: Repository) {

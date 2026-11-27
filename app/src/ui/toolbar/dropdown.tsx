@@ -128,6 +128,13 @@ export interface IToolbarDropdownProps {
   readonly enableFocusTrap?: boolean
 
   /**
+   * Horizontal alignment of the foldout relative to the dropdown button.
+   * 'left' (default) aligns the left edge of the foldout with the left edge of the button.
+   * 'right' aligns the right edge of the foldout with the right edge of the button.
+   */
+  readonly dropdownHorizontalAlign?: 'left' | 'right'
+
+  /**
    * Sets the styles for the dropdown's foldout, replacing the defaults.
    * Useful for custom positioning and sizes.
    *
@@ -396,9 +403,21 @@ export class ToolbarDropdown extends React.Component<
     const overrides: React.CSSProperties =
       this.props.foldoutStyleOverrides ?? {}
 
+    let marginLeft: number | string = rect.left
+    if (this.props.dropdownHorizontalAlign === 'right') {
+      const targetWidth =
+        typeof overrides.width === 'number'
+          ? overrides.width
+          : typeof overrides.minWidth === 'number'
+          ? overrides.minWidth
+          : rect.width
+
+      marginLeft = Math.max(10, rect.right - targetWidth)
+    }
+
     return {
       position: 'absolute',
-      marginLeft: rect.left,
+      marginLeft,
       top: 0,
       ...heightStyle,
       ...overrides,
@@ -498,6 +517,7 @@ export class ToolbarDropdown extends React.Component<
               ? undefined
               : this.isOpen
           }
+          ariaLabel={this.props.ariaLabel}
           ariaHaspopup={this.props.buttonAriaHaspopup}
         >
           {this.props.children}

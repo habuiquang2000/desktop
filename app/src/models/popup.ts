@@ -46,6 +46,7 @@ export enum PopupType {
   About = 'About',
   InstallGit = 'InstallGit',
   PublishRepository = 'PublishRepository',
+  MirrorRepository = 'MirrorRepository',
   Acknowledgements = 'Acknowledgements',
   UntrustedCertificate = 'UntrustedCertificate',
   RemoveRepository = 'RemoveRepository',
@@ -576,5 +577,9 @@ export type PopupDetail =
       error: Error
       originalWorktree: WorktreeEntry | null
       options: IDeleteWorktreeOptions
+    }
+  | {
+      type: PopupType.MirrorRepository
+      repository: Repository
     }
 export type Popup = IBasePopup & PopupDetail

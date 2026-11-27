@@ -50,6 +50,8 @@ mock.module('electron', {
     ipcRenderer: {
       invoke: mock.fn(async () => {}),
       on: mock.fn(x => {}),
+      removeListener: mock.fn(() => {}),
+      send: mock.fn(() => {}),
     },
   },
 })

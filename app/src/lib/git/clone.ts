@@ -217,7 +217,7 @@ async function cloneCore(
       `protocol.${protocol}.allow=never`,
     ]),
     'clone',
-    '--recursive',
+    ...(options.mirror === true ? ['--mirror'] : ['--recursive']),
   ]
 
   let opts: IGitStringExecutionOptions = {

@@ -1,6 +1,24 @@
 /* eslint-disable no-sync */
 /// <reference path="./globals.d.ts" />
 
+// Suppress known DEP0170/DEP0169 deprecation warning emitted by legal-eagle/Node when parsing legacy git URLs
+const originalEmitWarning = process.emitWarning
+process.emitWarning = (warning: any, ...args: any[]) => {
+  const code = typeof warning === 'object' ? warning?.code : args[1] || args[0]
+  if (
+    code === 'DEP0170' ||
+    code === 'DEP0169' ||
+    (typeof warning === 'string' &&
+      (warning.includes('DEP0170') ||
+        warning.includes('DEP0169') ||
+        warning.includes('cliui') ||
+        warning.includes('git+ssh')))
+  ) {
+    return
+  }
+  return (originalEmitWarning as any).call(process, warning, ...args)
+}
+
 import * as cp from 'child_process'
 import frontMatter from 'front-matter'
 import * as os from 'os'

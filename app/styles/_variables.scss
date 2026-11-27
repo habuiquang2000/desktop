@@ -555,6 +555,16 @@ $overlay-background-color: rgba(0, 0, 0, 0.4);
   --md-neutral-muted-color: rgba(175, 184, 193, 0.2);
   --md-accent-emphasis-color: #0969da;
   --md-accent-fg-color: #0969da;
+
+  // Visual Git tree / commit graph palette
+  --git-tree-color-0: #0969da;
+  --git-tree-color-1: #1a7f37;
+  --git-tree-color-2: #bf8700;
+  --git-tree-color-3: #8250df;
+  --git-tree-color-4: #bf3989;
+  --git-tree-color-5: #0e8a9f;
+  --git-tree-color-6: #cf222e;
+  --git-tree-color-7: #d46b08;
 }
 
 ::backdrop {

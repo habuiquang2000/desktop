@@ -371,14 +371,6 @@ export function buildDefaultMenuTemplate({
         click: emit('open-external-editor'),
       },
       {
-        label: __DARWIN__
-          ? 'Open in GitHub Copilot'
-          : 'Open in GitHub &Copilot',
-        id: 'open-in-copilot-app',
-        accelerator: 'CmdOrCtrl+Shift+J',
-        click: emit('open-in-copilot-app'),
-      },
-      {
         label: __DARWIN__ ? 'Open With…' : 'Open &with…',
         id: 'open-with-external-editor',
         accelerator: 'CmdOrCtrl+Shift+Alt+A',
@@ -399,6 +391,12 @@ export function buildDefaultMenuTemplate({
         label: __DARWIN__ ? 'New Worktree…' : 'New work&tree…',
         click: emit('create-worktree'),
         accelerator: 'CmdOrCtrl+Shift+W',
+      },
+      separator,
+      {
+        id: 'mirror-repository',
+        label: __DARWIN__ ? 'Mirror Repository…' : '&Mirror repository…',
+        click: emit('mirror-repository'),
       },
       separator,
       {

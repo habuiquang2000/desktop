@@ -12,6 +12,8 @@ export type CloneOptions = {
    * the one being cloned from. See `IGitExecutionOptions.fallbackAccount`.
    */
   readonly fallbackAccount?: IAccountIdentity
+  /** Whether to create a bare mirror clone of the source repository (--mirror). */
+  readonly mirror?: boolean
 }
 
 /** Options for cloning a repository through the app. */
@@ -31,4 +33,6 @@ export type CloneRepositoryOptions = {
    * are recorded in the clone account usage stats.
    */
   readonly fromCloneDialog?: boolean
+  /** Whether to create a bare mirror clone of the source repository (--mirror). */
+  readonly mirror?: boolean
 }

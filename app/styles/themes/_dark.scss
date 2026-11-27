@@ -443,6 +443,16 @@ body.theme-dark {
   --md-neutral-muted-color: rgba(110, 118, 129, 0.4);
   --md-accent-emphasis-color: #1f6feb;
   --md-accent-fg-color: #58a6ff;
+
+  // Visual Git tree / commit graph palette
+  --git-tree-color-0: #58a6ff;
+  --git-tree-color-1: #3fb950;
+  --git-tree-color-2: #d29922;
+  --git-tree-color-3: #bc8cff;
+  --git-tree-color-4: #f778ba;
+  --git-tree-color-5: #39c5cf;
+  --git-tree-color-6: #ff7b72;
+  --git-tree-color-7: #f0883e;
 }
 
 // this emulates the cursor for the co-author input because it isn't exactly

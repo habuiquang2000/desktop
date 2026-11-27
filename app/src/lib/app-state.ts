@@ -94,6 +94,7 @@ export type PossibleSelections =
 /** All of the shared app state. */
 export interface IAppState {
   readonly accounts: ReadonlyArray<Account>
+  readonly activeAccount: Account | null
   /**
    * The current list of repositories tracked in the application
    */
@@ -455,6 +456,8 @@ export enum FoldoutType {
   AddMenu,
   PushPull,
   Worktree,
+  AccountSwitcher,
+  Remote,
 }
 
 export type AppMenuFoldout = {
@@ -479,6 +482,8 @@ export type Foldout =
   | AppMenuFoldout
   | { type: FoldoutType.PushPull }
   | { type: FoldoutType.Worktree }
+  | { type: FoldoutType.AccountSwitcher }
+  | { type: FoldoutType.Remote }
 
 export enum RepositorySectionTab {
   Changes,
@@ -594,6 +599,9 @@ export interface IRepositoryState {
 
   /** The remote currently associated with the repository, if defined in the configuration */
   readonly remote: IRemote | null
+
+  /** The configured remotes for the repository */
+  readonly remotes: ReadonlyArray<IRemote>
 
   /** The state of the current branch in relation to its upstream. */
   readonly aheadBehind: IAheadBehind | null

@@ -38,7 +38,7 @@ const getPortOrDefault = () => {
 
 const port = getPortOrDefault()
 const webpackHotModuleReloadUrl = `webpack-hot-middleware/client?path=http://localhost:${port}/__webpack_hmr`
-const publicPath = `http://localhost:${port}/build/`
+const publicPath = ''
 
 const rendererConfig = merge({}, common.renderer, config, {
   entry: {

@@ -98,6 +98,7 @@ import {
 } from '../../models/status'
 import { TipState, IValidBranch } from '../../models/tip'
 import { Banner, BannerType } from '../../models/banner'
+import { IRemote } from '../../models/remote'
 
 import { ApplicationTheme } from '../lib/application-theme'
 import { installCLI } from '../lib/install-cli'
@@ -1720,6 +1721,33 @@ export class Dispatcher {
     return this.appStore._setRemoteURL(repository, name, url)
   }
 
+  /** Add a new remote with the given name and URL */
+  public addRemote(
+    repository: Repository,
+    name: string,
+    url: string
+  ): Promise<IRemote> {
+    return this.appStore._addRemote(repository, name, url)
+  }
+
+  /** Removes an existing remote */
+  public removeRemote(repository: Repository, name: string): Promise<void> {
+    return this.appStore._removeRemote(repository, name)
+  }
+
+  /** Switches the primary remote to the target remote */
+  public switchRemote(
+    repository: Repository,
+    currentPrimaryName: string,
+    targetRemoteName: string
+  ): Promise<void> {
+    return this.appStore._switchRemote(
+      repository,
+      currentPrimaryName,
+      targetRemoteName
+    )
+  }
+
   /** Open the URL in a browser */
   public openInBrowser(url: string): Promise<boolean> {
     return this.appStore._openInBrowser(url)
@@ -1951,6 +1979,36 @@ export class Dispatcher {
     repository: RepositoryWithGitHubRepository
   ): Promise<void> {
     await this.appStore._showCreateForkDialog(repository)
+  }
+
+  /** Switch the active user account in GitHub Desktop. */
+  public async switchActiveAccount(account: Account): Promise<void> {
+    await this.appStore._switchActiveAccount(account)
+  }
+
+  /** Mirror repository to a target URL or remote using git push --mirror */
+  public async mirrorRepository(
+    repository: Repository,
+    destination: string,
+    targetAccount?: Account | null,
+    saveAsRemote = true,
+    autoSync = false
+  ): Promise<void> {
+    await this.appStore._mirrorRepository(
+      repository,
+      destination,
+      targetAccount,
+      saveAsRemote,
+      autoSync
+    )
+  }
+
+  /** Show the Mirror Repository dialog. */
+  public showMirrorRepositoryDialog(repository: Repository): void {
+    this.appStore._showPopup({
+      type: PopupType.MirrorRepository,
+      repository,
+    })
   }
 
   public async showUnknownAuthorsCommitWarning(

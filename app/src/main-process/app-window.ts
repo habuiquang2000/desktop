@@ -174,9 +174,10 @@ export class AppWindow {
     })
 
     this.window.webContents.once('did-finish-load', () => {
-      if (process.env.NODE_ENV === 'development') {
-        this.window.webContents.openDevTools()
-      }
+      // DevTools auto-open disabled for clean GUI automation and verification
+      // if (process.env.NODE_ENV === 'development') {
+      //   this.window.webContents.openDevTools()
+      // }
 
       this._loadTime = now() - startLoad
 

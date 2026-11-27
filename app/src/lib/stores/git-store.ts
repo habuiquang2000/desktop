@@ -54,6 +54,8 @@ import {
   revertCommit,
   unstageAllFiles,
   addRemote,
+  removeRemote,
+  switchRemote,
   listSubmodules,
   resetSubmodulePaths,
   parseTrailers,
@@ -65,7 +67,6 @@ import {
   revRange,
   revSymmetricDifference,
   getConfigValue,
-  removeRemote,
   createTag,
   getAllTags,
   deleteTag,
@@ -1686,6 +1687,37 @@ export class GitStore extends BaseStore {
 
     this.emitUpdate()
     return wasSuccessful
+  }
+
+  /** Adds a new remote with the given name and URL */
+  public async addRemote(name: string, url: string): Promise<IRemote | null> {
+    const remote = await this.performFailableOperation(() =>
+      addRemote(this.repository, name, url)
+    )
+    await this.loadRemotes()
+    this.emitUpdate()
+    return remote ?? null
+  }
+
+  /** Removes an existing remote */
+  public async removeRemote(name: string): Promise<void> {
+    await this.performFailableOperation(() =>
+      removeRemote(this.repository, name)
+    )
+    await this.loadRemotes()
+    this.emitUpdate()
+  }
+
+  /** Switches the primary remote to the target remote */
+  public async switchRemote(
+    currentPrimaryName: string,
+    targetRemoteName: string
+  ): Promise<void> {
+    await this.performFailableOperation(() =>
+      switchRemote(this.repository, currentPrimaryName, targetRemoteName)
+    )
+    await this.loadRemotes()
+    this.emitUpdate()
   }
 
   public async discardChanges(

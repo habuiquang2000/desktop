@@ -19,12 +19,6 @@
     height: var(--win32-title-bar-height);
     background: var(--win32-title-bar-background-color);
     border-bottom: 1px solid #000;
-
-    .app-icon {
-      color: var(--toolbar-button-secondary-color);
-      margin: 0 var(--spacing);
-      align-self: center;
-    }
   }
 
   .resize-handle {
@@ -41,6 +35,21 @@
     &.left {
       width: 3px;
       height: var(--win32-title-bar-height);
+    }
+  }
+
+  .title-bar-right-section {
+    flex-grow: 0;
+    flex-shrink: 0;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    -webkit-app-region: no-drag;
+    height: 100%;
+    padding: 0 var(--spacing-half);
+
+    @include darwin {
+      margin-right: var(--spacing);
     }
   }
 
@@ -118,6 +127,10 @@
         fill: currentColor;
       }
     }
+  }
+
+  .title-bar-right-section + .window-controls {
+    margin-left: 0;
   }
 }
 

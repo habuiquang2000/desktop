@@ -20,6 +20,8 @@ import {
   ChangesSelectionKind,
   ChangesWorkingDirectorySelection,
 } from '../../../../src/lib/app-state'
+import { Repository } from '../../../../src/models/repository'
+import { storeFileSelections } from '../../../../src/lib/stores/helpers/file-selection-storage'
 
 const allSelected = DiffSelection.fromInitialSelection(DiffSelectionType.All)
 const noneSelected = DiffSelection.fromInitialSelection(DiffSelectionType.None)
@@ -233,6 +235,113 @@ describe('updateChangedFiles', () => {
       const workingDirectorySelection =
         selection as ChangesWorkingDirectorySelection
       assert.equal(workingDirectorySelection.diff, diff)
+    })
+  })
+
+  describe('remembered file selections for any repository', () => {
+    const repository = new Repository('/path/to/repo', 42, null, false)
+
+    beforeEach(() => {
+      localStorage.clear()
+    })
+
+    it('auto unmarks newly changed files when not previously remembered', () => {
+      const prevState = createState({
+        workingDirectory: WorkingDirectoryStatus.fromFiles([]),
+      })
+
+      const status = createStatus({
+        workingDirectory: WorkingDirectoryStatus.fromFiles(files),
+      })
+
+      const { workingDirectory } = updateChangedFiles(
+        prevState,
+        status,
+        false,
+        repository
+      )
+
+      assert.equal(workingDirectory.files.length, 2)
+      for (const file of workingDirectory.files) {
+        assert.equal(
+          file.selection.getSelectionType(),
+          DiffSelectionType.None,
+          `Expected ${file.path} to be auto unmarked`
+        )
+      }
+    })
+
+    it('restores marked and unmarked state from remembered repository selections', () => {
+      storeFileSelections(repository, ['README.md'], true)
+      storeFileSelections(repository, ['app/package.json'], false)
+
+      const prevState = createState({
+        workingDirectory: WorkingDirectoryStatus.fromFiles([]),
+      })
+
+      const status = createStatus({
+        workingDirectory: WorkingDirectoryStatus.fromFiles(files),
+      })
+
+      const { workingDirectory } = updateChangedFiles(
+        prevState,
+        status,
+        false,
+        repository
+      )
+
+      const readme = workingDirectory.files.find(f => f.path === 'README.md')
+      const pkg = workingDirectory.files.find(f => f.path === 'app/package.json')
+
+      assert(readme !== undefined)
+      assert.equal(
+        readme.selection.getSelectionType(),
+        DiffSelectionType.All,
+        'Expected README.md to be marked (DiffSelectionType.All)'
+      )
+
+      assert(pkg !== undefined)
+      assert.equal(
+        pkg.selection.getSelectionType(),
+        DiffSelectionType.None,
+        'Expected app/package.json to be unmarked (DiffSelectionType.None)'
+      )
+    })
+
+    it('preserves remembered selection across renames via oldPath', () => {
+      storeFileSelections(repository, ['old-name.ts'], true)
+
+      const renamedFile = new WorkingDirectoryFileChange(
+        'new-name.ts',
+        {
+          kind: AppFileStatusKind.Renamed,
+          oldPath: 'old-name.ts',
+          renameIncludesModifications: false,
+        },
+        allSelected
+      )
+
+      const prevState = createState({
+        workingDirectory: WorkingDirectoryStatus.fromFiles([]),
+      })
+
+      const status = createStatus({
+        workingDirectory: WorkingDirectoryStatus.fromFiles([renamedFile]),
+      })
+
+      const { workingDirectory } = updateChangedFiles(
+        prevState,
+        status,
+        false,
+        repository
+      )
+
+      assert.equal(workingDirectory.files.length, 1)
+      assert.equal(
+        workingDirectory.files[0].selection.getSelectionType(),
+        DiffSelectionType.All,
+        'Expected renamed file to inherit marked state from oldPath'
+      )
     })
   })
 })

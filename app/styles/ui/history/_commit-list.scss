@@ -14,6 +14,10 @@
 
   .list-item.selected:not(.in-keyboard-insertion-mode) {
     .commit {
+      .git-tree-node-merge,
+      .git-tree-node-inner {
+        fill: var(--box-selected-background-color);
+      }
       .unpushed-indicator {
         background: var(--list-item-selected-badge-background-color);
         color: var(--list-item-selected-badge-color);
@@ -50,6 +54,10 @@
   .focus-within:not(.in-keyboard-insertion-mode) {
     .list-item.selected {
       .commit {
+        .git-tree-node-merge,
+        .git-tree-node-inner {
+          fill: var(--box-selected-active-background-color);
+        }
         .unpushed-indicator {
           background: var(--list-item-selected-active-badge-background-color);
           color: var(--list-item-selected-active-badge-color);
@@ -108,6 +116,64 @@
   // We need to give a bit more padding to the right to make place for the scrollbar
   padding-right: calc(var(--spacing) + var(--spacing-half));
   padding-left: var(--spacing);
+
+  .git-tree-svg {
+    flex: 0 0 auto;
+    margin-right: var(--spacing-half);
+    overflow: visible;
+
+    .git-tree-line {
+      fill: none;
+      stroke-width: 2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .git-tree-node {
+      stroke-width: 2px;
+    }
+
+    .git-tree-node-merge {
+      fill: var(--background-color);
+    }
+
+    .git-tree-node-inner {
+      fill: var(--background-color);
+    }
+
+    .git-tree-color-0 {
+      stroke: var(--git-tree-color-0);
+      fill: var(--git-tree-color-0);
+    }
+    .git-tree-color-1 {
+      stroke: var(--git-tree-color-1);
+      fill: var(--git-tree-color-1);
+    }
+    .git-tree-color-2 {
+      stroke: var(--git-tree-color-2);
+      fill: var(--git-tree-color-2);
+    }
+    .git-tree-color-3 {
+      stroke: var(--git-tree-color-3);
+      fill: var(--git-tree-color-3);
+    }
+    .git-tree-color-4 {
+      stroke: var(--git-tree-color-4);
+      fill: var(--git-tree-color-4);
+    }
+    .git-tree-color-5 {
+      stroke: var(--git-tree-color-5);
+      fill: var(--git-tree-color-5);
+    }
+    .git-tree-color-6 {
+      stroke: var(--git-tree-color-6);
+      fill: var(--git-tree-color-6);
+    }
+    .git-tree-color-7 {
+      stroke: var(--git-tree-color-7);
+      fill: var(--git-tree-color-7);
+    }
+  }
 
   .info {
     display: flex;

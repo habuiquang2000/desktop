@@ -13,12 +13,16 @@ import {
 } from '../../models/repository'
 import { Dialog, DialogContent, DialogError, DialogFooter } from '../dialog'
 import { NoRemote } from './no-remote'
-import { readGitIgnoreAtRoot } from '../../lib/git'
+import { readGitIgnoreAtRoot, getRemotes } from '../../lib/git'
 import { OkCancelButtonGroup } from '../dialog/ok-cancel-button-group'
 import { ForkSettings } from './fork-settings'
 import { ForkContributionTarget } from '../../models/workflow-preferences'
 import { GitConfigLocation, GitConfig } from './git-config'
-import { getConfigValue, getGlobalConfigValue } from '../../lib/git/config'
+import {
+  getConfigValue,
+  getGlobalConfigValue,
+  setConfigValue,
+} from '../../lib/git/config'
 import {
   gitAuthorNameIsValid,
   InvalidGitAuthorNameMessage,
@@ -48,6 +52,8 @@ export enum RepositorySettingsTab {
 interface IRepositorySettingsState {
   readonly selectedTab: RepositorySettingsTab
   readonly remote: IRemote | null
+  readonly remotes: ReadonlyArray<IRemote>
+  readonly remoteUrls: ReadonlyMap<string, string>
   readonly ignoreText: string | null
   readonly ignoreTextHasChanged: boolean
   readonly disabled: boolean
@@ -64,6 +70,7 @@ interface IRepositorySettingsState {
   readonly forkContributionTarget: ForkContributionTarget
   readonly isLoadingGitConfig: boolean
   readonly selectedLogin?: string | null
+  readonly autoSyncMirror?: boolean
 }
 
 export class RepositorySettings extends React.Component<
@@ -77,6 +84,10 @@ export class RepositorySettings extends React.Component<
       selectedTab:
         this.props.initialSelectedTab || RepositorySettingsTab.Remote,
       remote: props.remote,
+      remotes: props.remote ? [props.remote] : [],
+      remoteUrls: props.remote
+        ? new Map([[props.remote.name, props.remote.url]])
+        : new Map(),
       ignoreText: null,
       ignoreTextHasChanged: false,
       disabled: false,
@@ -95,6 +106,29 @@ export class RepositorySettings extends React.Component<
   }
 
   public async componentWillMount() {
+    try {
+      const remotes = await getRemotes(this.props.repository)
+      const remoteUrls = new Map<string, string>()
+      for (const r of remotes) {
+        remoteUrls.set(r.name, r.url)
+      }
+      const primaryRemote =
+        remotes.find(r => r.name === 'origin') ??
+        (this.props.remote
+          ? remotes.find(r => r.name === this.props.remote?.name) ?? remotes[0]
+          : remotes[0] ?? null)
+      this.setState({
+        remotes,
+        remoteUrls,
+        remote: primaryRemote ?? this.props.remote,
+      })
+    } catch (e) {
+      log.error(
+        `RepositorySettings: unable to load remotes for ${this.props.repository.path}`,
+        e
+      )
+    }
+
     try {
       const ignoreText = await readGitIgnoreAtRoot(this.props.repository)
       this.setState({ ignoreText })
@@ -134,6 +168,17 @@ export class RepositorySettings extends React.Component<
       committerEmail = localCommitterEmail ?? ''
     }
 
+    let autoSyncMirror: boolean | undefined
+    try {
+      const configVal = await getConfigValue(
+        this.props.repository,
+        'desktop.mirror-auto-sync'
+      )
+      autoSyncMirror = configVal === 'true'
+    } catch {
+      autoSyncMirror = false
+    }
+
     this.setState({
       gitConfigLocation,
       committerName,
@@ -144,6 +189,7 @@ export class RepositorySettings extends React.Component<
       initialCommitterName: localCommitterName,
       initialCommitterEmail: localCommitterEmail,
       isLoadingGitConfig: false,
+      autoSyncMirror,
     })
   }
 
@@ -218,15 +264,28 @@ export class RepositorySettings extends React.Component<
     switch (tab) {
       case RepositorySettingsTab.Remote: {
         const remote = this.state.remote
+        const hasRemotes = this.state.remotes.length > 0 || remote !== null
         return (
           <DialogContent>
-            {remote ? (
+            {hasRemotes ? (
               <Remote
-                remote={remote}
+                remote={remote ?? this.state.remotes[0]}
+                remotes={this.state.remotes}
+                remoteUrls={this.state.remoteUrls}
                 onRemoteUrlChanged={this.onRemoteUrlChanged}
+                onAddRemote={this.onAddRemote}
+                onSwitchRemote={this.onSwitchRemote}
+                onRemoveRemote={this.onRemoveRemote}
+                autoSyncMirror={this.state.autoSyncMirror}
+                onAutoSyncMirrorChanged={this.onAutoSyncMirrorChanged}
+                onPushMirrorNow={this.onPushMirrorNow}
+                onOpenMirrorDialog={this.onOpenMirrorDialog}
               />
             ) : (
-              <NoRemote onPublish={this.onPublish} />
+              <NoRemote
+                onPublish={this.onPublish}
+                onAddRemote={this.onAddRemote}
+              />
             )}
             {this.renderAccount()}
           </DialogContent>
@@ -372,7 +431,33 @@ export class RepositorySettings extends React.Component<
       }
     }
 
-    if (this.state.remote && this.props.remote) {
+    for (const r of this.state.remotes) {
+      const editedUrl = this.state.remoteUrls.get(r.name)
+      if (editedUrl !== undefined) {
+        const trimmed = editedUrl.trim()
+        if (trimmed !== r.url) {
+          try {
+            await this.props.dispatcher.setRemoteURL(
+              repository,
+              r.name,
+              trimmed
+            )
+          } catch (e) {
+            log.error(
+              `RepositorySettings: unable to set remote URL for ${r.name} at ${this.props.repository.path}`,
+              e
+            )
+            errors.push(`Failed setting the remote URL for ${r.name}: ${e}`)
+          }
+        }
+      }
+    }
+
+    if (
+      this.state.remotes.length === 0 &&
+      this.state.remote &&
+      this.props.remote
+    ) {
       const trimmedUrl = this.state.remote.url.trim()
 
       if (trimmedUrl !== this.props.remote.url) {
@@ -469,6 +554,21 @@ export class RepositorySettings extends React.Component<
       this.props.dispatcher.refreshAuthor(this.props.repository)
     }
 
+    if (this.state.autoSyncMirror !== undefined) {
+      try {
+        await setConfigValue(
+          this.props.repository,
+          'desktop.mirror-auto-sync',
+          this.state.autoSyncMirror ? 'true' : 'false'
+        )
+      } catch (e) {
+        log.error(
+          `RepositorySettings: unable to save mirror-auto-sync config at ${this.props.repository.path}`,
+          e
+        )
+      }
+    }
+
     if (!errors.length) {
       this.props.onDismissed()
     } else {
@@ -476,15 +576,58 @@ export class RepositorySettings extends React.Component<
     }
   }
 
-  private onRemoteUrlChanged = (url: string) => {
-    const remote = this.props.remote
+  private refreshRemotes = async () => {
+    const remotes = await getRemotes(this.props.repository)
+    const remoteUrls = new Map<string, string>()
+    for (const r of remotes) {
+      const existing = this.state.remoteUrls.get(r.name)
+      remoteUrls.set(r.name, existing !== undefined ? existing : r.url)
+    }
+    const primaryRemote =
+      remotes.find(r => r.name === 'origin') ??
+      (remotes.length > 0 ? remotes[0] : null)
+    this.setState({
+      remotes,
+      remoteUrls,
+      remote: primaryRemote,
+    })
+  }
 
-    if (!remote) {
+  private onAddRemote = async (name: string, url: string) => {
+    await this.props.dispatcher.addRemote(this.props.repository, name, url)
+    await this.refreshRemotes()
+  }
+
+  private onSwitchRemote = async (targetRemoteName: string) => {
+    const currentPrimary = this.state.remote?.name ?? 'origin'
+    await this.props.dispatcher.switchRemote(
+      this.props.repository,
+      currentPrimary,
+      targetRemoteName
+    )
+    await this.refreshRemotes()
+  }
+
+  private onRemoveRemote = async (name: string) => {
+    await this.props.dispatcher.removeRemote(this.props.repository, name)
+    await this.refreshRemotes()
+  }
+
+  private onRemoteUrlChanged = (url: string, name?: string) => {
+    const remoteName = name ?? this.state.remote?.name
+    if (!remoteName) {
       return
     }
 
-    const newRemote = { ...remote, url }
-    this.setState({ remote: newRemote })
+    const remoteUrls = new Map(this.state.remoteUrls)
+    remoteUrls.set(remoteName, url)
+
+    const remote =
+      this.state.remote?.name === remoteName
+        ? { ...this.state.remote, url }
+        : this.state.remote
+
+    this.setState({ remoteUrls, remote })
   }
 
   private onIgnoreTextChanged = (text: string) => {
@@ -522,5 +665,31 @@ export class RepositorySettings extends React.Component<
 
   private onCommitterEmailChanged = (committerEmail: string) => {
     this.setState({ committerEmail })
+  }
+
+  private onAutoSyncMirrorChanged = (autoSyncMirror: boolean) => {
+    this.setState({ autoSyncMirror })
+  }
+
+  private onOpenMirrorDialog = () => {
+    this.props.onDismissed()
+    this.props.dispatcher.showMirrorRepositoryDialog(this.props.repository)
+  }
+
+  private onPushMirrorNow = async () => {
+    const mirrorRemote = this.state.remotes.find(r => r.name === 'mirror')
+    const mirrorUrl =
+      mirrorRemote !== undefined
+        ? this.state.remoteUrls.get('mirror') ?? mirrorRemote.url
+        : undefined
+
+    if (mirrorUrl !== undefined) {
+      this.props.onDismissed()
+      await this.props.dispatcher.mirrorRepository(
+        this.props.repository,
+        mirrorUrl,
+        this.selectedAccount
+      )
+    }
   }
 }

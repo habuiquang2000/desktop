@@ -171,6 +171,17 @@ export function renderBanner(
       )
     case BannerType.OSVersionNoLongerSupported:
       return <OSVersionNoLongerSupportedBanner onDismissed={onDismissed} />
+    case BannerType.SuccessfulMirror:
+      return (
+        <SuccessBanner
+          key="successful-mirror"
+          timeout={5000}
+          onDismissed={onDismissed}
+        >
+          Successfully mirrored repository to{' '}
+          <strong>{banner.destinationUrl}</strong>.
+        </SuccessBanner>
+      )
     default:
       return assertNever(banner, `Unknown popup type: ${banner}`)
   }

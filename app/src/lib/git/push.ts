@@ -5,6 +5,8 @@ import { PushProgressParser, executionOptionsWithProgress } from '../progress'
 import { IRemote } from '../../models/remote'
 import { envForRemoteOperation } from './environment'
 import { Branch } from '../../models/branch'
+import { IAccountIdentity } from '../../models/account'
+import { getRemoteURL } from './remote'
 
 export type PushOptions = {
   /**
@@ -19,6 +21,9 @@ export type PushOptions = {
   readonly branch?: Branch
 
   readonly noVerify?: boolean
+
+  /** Account identity to authenticate with if unassigned */
+  readonly fallbackAccount?: IAccountIdentity
 } & HookCallbackOptions
 
 /**
@@ -119,4 +124,65 @@ export async function push(
   }
 
   await git(args, repository.path, 'push', opts)
+}
+
+/**
+ * Push all local branches, tags, and commits to a destination URL or remote
+ * using `git push --mirror`.
+ */
+export async function pushMirror(
+  repository: Repository,
+  destination: string,
+  options?: PushOptions | null,
+  progressCallback?: (progress: IPushProgress) => void
+): Promise<void> {
+  const args = ['push', '--mirror']
+
+  if (options?.noVerify) {
+    args.push('--no-verify')
+  }
+
+  args.push('--', destination)
+
+  const url =
+    destination.includes('://') || destination.includes('@')
+      ? destination
+      : (await getRemoteURL(repository, destination)) ?? destination
+
+  const remoteEnv = await envForRemoteOperation(url)
+  let opts: IGitStringExecutionOptions = {
+    env: remoteEnv,
+    fallbackAccount: options?.fallbackAccount,
+    interceptHooks: ['pre-push'],
+    onHookProgress: options?.onHookProgress,
+    onHookFailure: options?.onHookFailure,
+    onTerminalOutputAvailable: options?.onTerminalOutputAvailable,
+  }
+
+  if (progressCallback) {
+    args.push('--progress')
+    const title = `Mirroring to ${destination}`
+    const kind = 'push'
+
+    opts = await executionOptionsWithProgress(
+      { ...opts, trackLFSProgress: true },
+      new PushProgressParser(),
+      progress => {
+        const description =
+          progress.kind === 'progress' ? progress.details.text : progress.text
+        const value = progress.percent
+
+        progressCallback({
+          kind,
+          title,
+          description,
+          value,
+          remote: destination,
+          branch: 'all',
+        })
+      }
+    )
+  }
+
+  await git(args, repository.path, 'pushMirror', opts)
 }

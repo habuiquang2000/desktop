@@ -4,6 +4,7 @@ import { Button } from '../lib/button'
 import { Row } from '../lib/row'
 import { DialogContent } from '../dialog'
 import { Ref } from '../lib/ref'
+import { Checkbox, CheckboxValue } from '../lib/checkbox'
 
 interface ICloneGenericRepositoryProps {
   /** The URL to clone. */
@@ -22,6 +23,12 @@ interface ICloneGenericRepositoryProps {
    * Called when the user should be prompted to choose a directory to clone to.
    */
   readonly onChooseDirectory: () => Promise<string | undefined>
+
+  /** Whether to clone as a mirror repository (--mirror). */
+  readonly mirror?: boolean
+
+  /** Called when the mirror checkbox changes. */
+  readonly onMirrorChanged?: (mirror: boolean) => void
 }
 
 /** The component for cloning a repository. */
@@ -58,8 +65,28 @@ export class CloneGenericRepository extends React.Component<
           />
           <Button onClick={this.props.onChooseDirectory}>Choose…</Button>
         </Row>
+
+        {this.props.onMirrorChanged !== undefined && (
+          <Row>
+            <Checkbox
+              label="Clone as mirror repository (--mirror)"
+              value={
+                this.props.mirror === true
+                  ? CheckboxValue.On
+                  : CheckboxValue.Off
+              }
+              onChange={this.onMirrorCheckboxChanged}
+            />
+          </Row>
+        )}
       </DialogContent>
     )
+  }
+
+  private onMirrorCheckboxChanged = (
+    event: React.FormEvent<HTMLInputElement>
+  ) => {
+    this.props.onMirrorChanged?.(event.currentTarget.checked)
   }
 
   private onUrlChanged = (url: string) => {

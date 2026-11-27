@@ -1,0 +1,161 @@
+.remote-toolbar-dropdown {
+  max-width: 220px;
+
+  .title,
+  .description {
+    @include ellipsis;
+  }
+}
+
+.remote-dropdown-foldout {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--box-background-color);
+  border: var(--base-border);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  overflow: hidden;
+  font-size: var(--font-size);
+
+  .remote-dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-half) var(--spacing);
+    border-bottom: var(--base-border);
+    background-color: var(--box-alt-background-color);
+
+    .remote-dropdown-header-title {
+      font-weight: var(--font-weight-semibold);
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary-color);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  }
+
+  .remote-dropdown-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 280px;
+    overflow-y: auto;
+
+    .remote-dropdown-empty {
+      padding: var(--spacing);
+      color: var(--text-secondary-color);
+      text-align: center;
+      font-style: italic;
+    }
+
+    .remote-dropdown-item {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: var(--spacing-half) var(--spacing);
+      border: none;
+      background: none;
+      text-align: left;
+      cursor: pointer;
+      color: var(--text-color);
+      gap: var(--spacing);
+      transition: background-color 0.1s ease;
+
+      &:hover {
+        background-color: var(--box-hover-background-color);
+      }
+
+      &.is-active {
+        background-color: var(--box-selected-background-color, rgba(9, 105, 218, 0.1));
+
+        .remote-dropdown-item-name {
+          font-weight: var(--font-weight-bold);
+          color: var(--focus-color, #0969da);
+        }
+      }
+
+      .remote-dropdown-item-icon {
+        flex-shrink: 0;
+        color: var(--text-secondary-color);
+      }
+
+      .remote-dropdown-item-info {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+
+        .remote-dropdown-item-name-row {
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-half);
+
+          .remote-dropdown-item-name {
+            font-weight: var(--font-weight-semibold);
+            @include ellipsis;
+          }
+
+          .remote-dropdown-primary-badge {
+            font-size: var(--font-size-xs);
+            padding: 1px 6px;
+            border-radius: 10px;
+            background-color: var(--accent-color, #0969da);
+            color: var(--accent-contrast-color, #ffffff);
+            font-weight: var(--font-weight-semibold);
+            line-height: 1.2;
+          }
+        }
+
+        .remote-dropdown-item-url {
+          font-size: var(--font-size-sm);
+          color: var(--text-secondary-color);
+          @include ellipsis;
+        }
+      }
+
+      .remote-dropdown-item-check {
+        flex-shrink: 0;
+        color: var(--focus-color, #0969da);
+
+        .remote-dropdown-switch-label {
+          font-size: var(--font-size-xs);
+          color: var(--text-secondary-color);
+          opacity: 0;
+          transition: opacity 0.1s ease;
+        }
+      }
+
+      &:hover .remote-dropdown-switch-label {
+        opacity: 1;
+      }
+    }
+  }
+
+  .remote-dropdown-footer {
+    display: flex;
+    flex-direction: column;
+    border-top: var(--base-border);
+    background-color: var(--box-alt-background-color);
+
+    .remote-dropdown-action-item {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: var(--spacing-half) var(--spacing);
+      border: none;
+      background: none;
+      text-align: left;
+      cursor: pointer;
+      color: var(--text-color);
+      gap: var(--spacing-half);
+      font-size: var(--font-size-sm);
+
+      &:hover {
+        background-color: var(--box-hover-background-color);
+      }
+
+      .octicon {
+        color: var(--text-secondary-color);
+      }
+    }
+  }
+}

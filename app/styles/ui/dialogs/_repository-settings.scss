@@ -55,4 +55,149 @@
   textarea.gitignore {
     height: 130px;
   }
+
+  .remote-settings-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing);
+  }
+
+  .remote-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-half);
+
+    .remote-header-title {
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-color);
+    }
+
+    .remote-header-actions {
+      display: flex;
+      gap: var(--spacing-half);
+
+      .button-component {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-half);
+
+        .octicon {
+          flex-shrink: 0;
+        }
+      }
+    }
+  }
+
+  .remotes-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing);
+    max-height: 380px;
+    overflow-y: auto;
+  }
+
+  .remote-card {
+    padding: var(--spacing);
+    border: var(--base-border);
+    border-radius: var(--border-radius);
+    background-color: var(--box-background-color);
+
+    &.primary-remote {
+      border-color: var(--focus-color, #0969da);
+    }
+
+    .remote-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--spacing-half);
+
+      .remote-name-wrapper {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-half);
+
+        .remote-name {
+          font-weight: var(--font-weight-bold);
+        }
+
+        .primary-badge {
+          font-size: var(--font-size-xs);
+          padding: 1px 6px;
+          border-radius: 10px;
+          background-color: var(--accent-color, #0969da);
+          color: var(--accent-contrast-color, #ffffff);
+          font-weight: var(--font-weight-semibold);
+          line-height: 1.4;
+        }
+      }
+
+      .remote-card-actions {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-half);
+
+        .switch-remote-button {
+          display: inline-flex;
+          align-items: center;
+          gap: var(--spacing-half);
+        }
+
+        .remove-remote-button {
+          padding-left: var(--spacing-half);
+          padding-right: var(--spacing-half);
+          color: var(--text-secondary-color);
+
+          &:hover {
+            color: var(--error-color, #cf222e);
+          }
+        }
+      }
+    }
+  }
+
+  .add-remote-section {
+    padding: var(--spacing);
+    border: var(--base-border);
+    border-radius: var(--border-radius);
+    background-color: var(--box-alt-background-color);
+    margin-bottom: var(--spacing-half);
+
+    h3 {
+      margin-top: 0;
+      margin-bottom: var(--spacing-half);
+      font-size: var(--font-size);
+    }
+
+    .add-remote-error {
+      color: var(--error-color, #cf222e);
+      font-size: var(--font-size-sm);
+      margin-top: var(--spacing-half);
+    }
+
+    .add-remote-actions {
+      display: flex;
+      gap: var(--spacing-half);
+      margin-top: var(--spacing);
+    }
+  }
+
+  .no-remote-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing);
+
+    .no-remote-add-container {
+      display: flex;
+      justify-content: center;
+      margin-top: var(--spacing);
+
+      .button-component {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--spacing-half);
+      }
+    }
+  }
 }

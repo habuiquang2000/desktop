@@ -30,6 +30,7 @@ interface IRepositoryListItemContextMenuConfig {
   onShowWorktrees?: (repository: Repository) => void
   onChangeRepositoryAccount: (repository: Repository, login: string) => void
   onShowRepositorySettings: (repository: Repository) => void
+  onMirrorRepository?: (repository: Repository) => void
 }
 
 export const generateRepositoryListContextMenu = (
@@ -51,6 +52,11 @@ export const generateRepositoryListContextMenu = (
     ...buildWorktreeMenuItems(config),
     ...buildAccountMenuItems(config),
     ...buildRepositorySettingsMenuItems(config),
+    {
+      label: __DARWIN__ ? 'Mirror Repository…' : 'Mirror repository…',
+      action: () => config.onMirrorRepository?.(repository as Repository),
+      enabled: !missing && repository instanceof Repository,
+    },
     {
       label: __DARWIN__ ? 'Copy Repo Name' : 'Copy repo name',
       action: () => writeClipboardText(repository.name),

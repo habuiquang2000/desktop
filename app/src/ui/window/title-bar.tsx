@@ -2,8 +2,6 @@ import * as React from 'react'
 import memoizeOne from 'memoize-one'
 import { WindowState } from '../../lib/window-state'
 import { WindowControls } from './window-controls'
-import { Octicon } from '../octicons/octicon'
-import * as octicons from '../octicons/octicons.generated'
 import { isMacOSBigSurOrLater, isMacOSTahoeOrLater } from '../../lib/get-os'
 import {
   getAppleActionOnDoubleClick,
@@ -39,9 +37,6 @@ interface ITitleBarProps {
   /** Whether we should hide the toolbar (and show inverted window controls) */
   readonly titleBarStyle: 'light' | 'dark'
 
-  /** Whether or not to render the app icon */
-  readonly showAppIcon: boolean
-
   /**
    * The current zoom factor of the Window represented as a fractional number
    * where 1 equals 100% (ie actual size) and 2 represents 200%.
@@ -50,6 +45,9 @@ interface ITitleBarProps {
    * regardless of the zoom factor.
    */
   readonly windowZoomFactor?: number
+
+  /** Optional elements to render on the right side of the title bar (e.g. user profile / account dropdown). */
+  readonly rightElements?: React.ReactNode
 }
 
 export class TitleBar extends React.Component<ITitleBarProps> {
@@ -109,10 +107,6 @@ export class TitleBar extends React.Component<ITitleBarProps> {
     const titleBarClass =
       this.props.titleBarStyle === 'light' ? 'light-title-bar' : ''
 
-    const appIcon = this.props.showAppIcon ? (
-      <Octicon className="app-icon" symbol={octicons.markGithub} />
-    ) : null
-
     const onTitlebarDoubleClick = __DARWIN__
       ? this.onTitlebarDoubleClickDarwin
       : undefined
@@ -126,8 +120,12 @@ export class TitleBar extends React.Component<ITitleBarProps> {
       >
         {topResizeHandle}
         {leftResizeHandle}
-        {appIcon}
         {this.props.children}
+        {this.props.rightElements && (
+          <div className="title-bar-right-section">
+            {this.props.rightElements}
+          </div>
+        )}
         {winControls}
       </div>
     )

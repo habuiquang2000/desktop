@@ -135,6 +135,7 @@ interface IBaseTabState {
 
 interface IUrlTabState extends IBaseTabState {
   readonly kind: 'urlTabState'
+  readonly mirror?: boolean
 }
 
 /**
@@ -162,6 +163,7 @@ interface ICloneRequest {
   readonly url: string
   readonly lastParsedIdentifier: IRepositoryIdentifier | null
   readonly path: string | null
+  readonly mirror?: boolean
 
   /**
    * The account selected in the GitHub tab, or null when cloning from the
@@ -382,6 +384,15 @@ export class CloneRepository extends React.Component<
     this.setSelectedTabState({ path }, this.validatePath)
   }
 
+  private onMirrorChanged = (mirror: boolean) => {
+    this.setState(prevState => ({
+      urlTabState: {
+        ...prevState.urlTabState,
+        mirror,
+      },
+    }))
+  }
+
   private renderActiveTab() {
     const tab = this.props.selectedTab
 
@@ -395,6 +406,8 @@ export class CloneRepository extends React.Component<
             onPathChanged={this.onPathChanged}
             onUrlChanged={this.updateUrl}
             onChooseDirectory={this.onChooseDirectory}
+            mirror={tabState.mirror}
+            onMirrorChanged={this.onMirrorChanged}
           />
         )
 
@@ -880,11 +893,16 @@ export class CloneRepository extends React.Component<
   private getCloneRequest(): ICloneRequest {
     const tab = this.props.selectedTab
     const { url, lastParsedIdentifier, path } = this.getTabState(tab)
+    const mirror =
+      tab === CloneRepositoryTab.Generic
+        ? this.state.urlTabState.mirror
+        : undefined
     return {
       tab,
       url,
       lastParsedIdentifier,
       path,
+      mirror,
       account:
         tab === CloneRepositoryTab.GitHub ? this.getSelectedAccount() : null,
     }
@@ -896,16 +914,17 @@ export class CloneRepository extends React.Component<
     path: string,
     defaultBranch?: string
   ) {
-    const { account } = request
+    const { account, mirror } = request
     this.props.dispatcher.clone(
       url,
       path,
       account === null
-        ? { defaultBranch, fromCloneDialog: true }
+        ? { defaultBranch, fromCloneDialog: true, mirror }
         : {
             defaultBranch,
             account: { endpoint: account.endpoint, login: account.login },
             fromCloneDialog: true,
+            mirror,
           }
     )
     this.props.onDismissed()

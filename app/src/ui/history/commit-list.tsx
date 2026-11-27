@@ -29,6 +29,11 @@ import { formatDate } from '../../lib/format-date'
 import { Avatar } from '../lib/avatar'
 import { Octicon } from '../octicons'
 import * as octicons from '../octicons/octicons.generated'
+import {
+  computeCommitGraph,
+  getGraphWidth,
+  ICommitGraph,
+} from '../../lib/git-tree'
 
 const RowHeight = 50
 
@@ -207,6 +212,12 @@ export class CommitList extends React.Component<
     (commitSHAs: ReadonlyArray<string>) =>
       new Map(commitSHAs.map((sha, index) => [sha, index]))
   )
+  private getCommitGraph = memoizeOne(
+    (
+      commitSHAs: ReadonlyArray<string>,
+      commitLookup: Map<string, Commit>
+    ): ICommitGraph => computeCommitGraph(commitSHAs, commitLookup)
+  )
 
   private containerRef = React.createRef<HTMLDivElement>()
   private listRef = React.createRef<List>()
@@ -292,6 +303,13 @@ export class CommitList extends React.Component<
       (isLocal || unpushedTags.length > 0) &&
       this.props.isLocalRepository === false
 
+    const graph = this.getCommitGraph(
+      this.props.commitSHAs,
+      this.props.commitLookup
+    )
+    const graphRow = graph.rows.get(commit.sha)
+    const graphWidth = getGraphWidth(graph.maxLanes)
+
     return (
       <CommitListItem
         key={commit.sha}
@@ -315,6 +333,8 @@ export class CommitList extends React.Component<
         disableSquashing={this.props.disableSquashing}
         accounts={this.props.accounts}
         preferAbsoluteDates={this.props.preferAbsoluteDates}
+        graphRow={graphRow}
+        graphWidth={graphWidth}
       />
     )
   }
