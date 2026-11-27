@@ -58,6 +58,7 @@ import {
   WorktreeDropdown,
   AccountSwitcherDropdown,
   RemoteDropdown,
+  CustomScriptDropdown,
   RevertProgress,
 } from './toolbar'
 import { iconForRepository, OcticonSymbol } from './octicons'
@@ -225,6 +226,9 @@ import {
 import { HookFailed } from './hook-failed/hook-failed'
 import { CommitProgress } from './commit-progress/commit-progress'
 import { AddWorktreeDialog } from './worktrees/add-worktree-dialog'
+import { CustomScriptOutputDialog } from './custom-scripts/custom-script-output-dialog'
+import { EditCustomScriptDialog } from './custom-scripts/edit-custom-script-dialog'
+import { QuickSearchCommandDialog } from './custom-scripts/quick-search-command-dialog'
 import { RenameWorktreeDialog } from './worktrees/rename-worktree-dialog'
 import { DeleteWorktreeDialog } from './worktrees/delete-worktree-dialog'
 import { DeleteWorktreeFailedDialog } from './worktrees/delete-worktree-failed-dialog'
@@ -497,6 +501,8 @@ export class App extends React.Component<IAppProps, IAppState> {
         return this.stashAllChanges()
       case 'show-preferences':
         return this.props.dispatcher.showPopup({ type: PopupType.Preferences })
+      case 'quick-search-command':
+        return this.showQuickSearchCommand()
       case 'open-working-directory':
         return this.openCurrentRepositoryWorkingDirectory()
       case 'update-branch-with-contribution-target-branch':
@@ -1719,6 +1725,35 @@ export class App extends React.Component<IAppProps, IAppState> {
             branch={popup.branch}
             onDismissed={onPopupDismissedFn}
             onDeleted={this.onBranchDeleted}
+          />
+        )
+      case PopupType.CustomScriptOutput:
+        return (
+          <CustomScriptOutputDialog
+            key="custom-script-output"
+            repository={popup.repository}
+            dispatcher={this.props.dispatcher}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      case PopupType.EditCustomScript:
+        return (
+          <EditCustomScriptDialog
+            key="edit-custom-script"
+            repository={popup.repository}
+            dispatcher={this.props.dispatcher}
+            script={popup.script}
+            onSave={popup.onSave}
+            onDismissed={onPopupDismissedFn}
+          />
+        )
+      case PopupType.QuickSearchCommand:
+        return (
+          <QuickSearchCommandDialog
+            key="quick-search-command"
+            repository={popup.repository}
+            dispatcher={this.props.dispatcher}
+            onDismissed={onPopupDismissedFn}
           />
         )
       case PopupType.ConfirmDiscardChanges:
@@ -3584,6 +3619,16 @@ export class App extends React.Component<IAppProps, IAppState> {
     }
   }
 
+  private showQuickSearchCommand = () => {
+    const selectedState = this.state.selectedState
+    if (
+      selectedState !== null &&
+      selectedState.type === SelectionType.Repository
+    ) {
+      this.props.dispatcher.showQuickSearchCommand(selectedState.repository)
+    }
+  }
+
   private showMirrorRepositoryFor = (repository: Repository) => {
     this.props.dispatcher.showMirrorRepositoryDialog(repository)
   }
@@ -3716,7 +3761,9 @@ export class App extends React.Component<IAppProps, IAppState> {
     const currentState: DropdownState = isOpen ? 'open' : 'closed'
 
     const tooltip = repository
-      ? `${repository.path}${this.state.isRepositoryListDocked ? ' (Docked)' : ''}`
+      ? `${repository.path}${
+          this.state.isRepositoryListDocked ? ' (Docked)' : ''
+        }`
       : undefined
 
     const foldoutWidth = clamp(this.state.sidebarWidth)
@@ -3994,6 +4041,19 @@ export class App extends React.Component<IAppProps, IAppState> {
     }
   }
 
+  private onCustomScriptDropdownStateChanged = (newState: DropdownState) => {
+    const selection = this.state.selectedState
+    if (selection == null || selection.type !== SelectionType.Repository) {
+      return
+    }
+
+    if (newState === 'open') {
+      this.props.dispatcher.showFoldout({ type: FoldoutType.CustomScript })
+    } else {
+      this.props.dispatcher.closeFoldout(FoldoutType.CustomScript)
+    }
+  }
+
   private renderBranchToolbarButton(): JSX.Element | null {
     const selection = this.state.selectedState
 
@@ -4129,6 +4189,32 @@ export class App extends React.Component<IAppProps, IAppState> {
     )
   }
 
+  private renderCustomScriptToolbarButton(): JSX.Element | null {
+    const selection = this.state.selectedState
+
+    if (selection == null || selection.type !== SelectionType.Repository) {
+      return null
+    }
+
+    const currentFoldout = this.state.currentFoldout
+    const isOpen =
+      currentFoldout !== null &&
+      currentFoldout.type === FoldoutType.CustomScript
+
+    const repository = selection.repository
+    const enableFocusTrap = this.state.currentPopup === null
+
+    return (
+      <CustomScriptDropdown
+        dispatcher={this.props.dispatcher}
+        repository={repository}
+        isOpen={isOpen}
+        onDropDownStateChanged={this.onCustomScriptDropdownStateChanged}
+        enableFocusTrap={enableFocusTrap}
+      />
+    )
+  }
+
   // we currently only render one banner at a time
   private renderBanner(): JSX.Element | null {
     // The inset light title bar style without the toolbar
@@ -4209,6 +4295,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         {this.renderBranchToolbarButton()}
         {this.renderPushPullToolbarButton()}
         {this.renderRemoteToolbarButton()}
+        {this.renderCustomScriptToolbarButton()}
       </Toolbar>
     )
   }

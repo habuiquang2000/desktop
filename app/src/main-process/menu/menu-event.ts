@@ -27,6 +27,7 @@ export type MenuEvent =
   | 'show-repository-settings'
   | 'mirror-repository'
   | 'open-in-shell'
+  | 'quick-search-command'
   | 'compare-on-github'
   | 'branch-on-github'
   | 'view-repository-on-github'

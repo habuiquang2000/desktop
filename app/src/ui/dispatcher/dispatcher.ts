@@ -1,4 +1,8 @@
 import { Disposable } from 'event-kit'
+import {
+  ICustomProjectScript,
+  CustomScriptRunner,
+} from '../../lib/custom-scripts'
 
 import {
   IAPIOrganization,
@@ -4629,5 +4633,58 @@ export class Dispatcher {
       log.error(`Error deleting BYOK Copilot provider '${id}'`, e)
       this.postError(e)
     }
+  }
+
+  /**
+   * Run a custom or detected project script for the given repository.
+   */
+  public async runCustomScript(
+    repository: Repository,
+    script: ICustomProjectScript
+  ): Promise<void> {
+    await CustomScriptRunner.getInstance().run(repository, script)
+  }
+
+  /**
+   * Stop an in-progress custom script execution for the given repository.
+   */
+  public stopCustomScript(repository: Repository): void {
+    CustomScriptRunner.getInstance().stop(repository)
+  }
+
+  /**
+   * Show the custom script output modal dialog.
+   */
+  public showCustomScriptOutput(repository: Repository): void {
+    this.showPopup({
+      type: PopupType.CustomScriptOutput,
+      repository,
+    })
+  }
+
+  /**
+   * Show the add / edit custom script dialog.
+   */
+  public showEditCustomScript(
+    repository: Repository,
+    script?: ICustomProjectScript,
+    onSave?: (script: ICustomProjectScript) => void
+  ): void {
+    this.showPopup({
+      type: PopupType.EditCustomScript,
+      repository,
+      script,
+      onSave,
+    })
+  }
+
+  /**
+   * Show the quick search command palette dialog.
+   */
+  public showQuickSearchCommand(repository: Repository): void {
+    this.showPopup({
+      type: PopupType.QuickSearchCommand,
+      repository,
+    })
   }
 }

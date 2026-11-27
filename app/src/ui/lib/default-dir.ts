@@ -1,5 +1,6 @@
 import * as Path from 'path'
-import { getDocumentsPath, getPath } from './app-proxy'
+import { getDocumentsPath } from './app-proxy'
+import { getPath } from '../main-process-proxy'
 import { getRepoTreeDirectoryPath } from '../../lib/single-directory'
 
 const localStorageKey = 'last-clone-location'

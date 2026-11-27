@@ -369,6 +369,14 @@ export function buildDefaultMenuTemplate({
       },
       {
         label: __DARWIN__
+          ? 'Quick Search Command…'
+          : '&Quick Search Command…',
+        id: 'quick-search-command',
+        accelerator: 'CmdOrCtrl+K',
+        click: emit('quick-search-command'),
+      },
+      {
+        label: __DARWIN__
           ? 'Show in Finder'
           : __WIN32__
           ? 'Show in E&xplorer'

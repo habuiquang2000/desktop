@@ -85,10 +85,67 @@ export function getProfileGitConfigPath(): string {
 }
 
 /**
+ * Merges legacy separate directories (such as 'GitHub Desktop-dev' and
+ * legacy 'Documents/GitHub' repositories) into the single unified directory once.
+ */
+export function mergeAllDataToOne(): void {
+  const singleDir = getSingleDirectoryPath()
+  const repoTreeDir = getRepoTreeDirectoryPath()
+
+  try {
+    // 1. Detect and merge legacy dev data directory if it exists
+    const appData =
+      process.platform === 'win32'
+        ? process.env.APPDATA || Path.join(Os.homedir(), 'AppData', 'Roaming')
+        : process.platform === 'darwin'
+        ? Path.join(Os.homedir(), 'Library', 'Application Support')
+        : process.env.XDG_CONFIG_HOME || Path.join(Os.homedir(), '.config')
+
+    const devDir = Path.join(appData, 'GitHub Desktop-dev')
+    if (Fs.existsSync(devDir) && devDir !== singleDir) {
+      const devItems = Fs.readdirSync(devDir)
+      for (const item of devItems) {
+        const srcPath = Path.join(devDir, item)
+        const destPath = Path.join(singleDir, item)
+        if (!Fs.existsSync(destPath)) {
+          Fs.cpSync(srcPath, destPath, { recursive: true })
+        }
+      }
+    }
+
+    // 2. Detect and copy legacy Documents/GitHub repositories into repo tree
+    const legacyDocsGithub = Path.join(Os.homedir(), 'Documents', 'GitHub')
+    const altDocsGithub = Path.join(Os.homedir(), 'Documents', 'Github')
+    for (const legacyPath of [legacyDocsGithub, altDocsGithub]) {
+      if (Fs.existsSync(legacyPath)) {
+        const repoItems = Fs.readdirSync(legacyPath)
+        for (const repoItem of repoItems) {
+          const srcRepo = Path.join(legacyPath, repoItem)
+          const destRepo = Path.join(repoTreeDir, repoItem)
+          if (Fs.existsSync(srcRepo) && !Fs.existsSync(destRepo)) {
+            try {
+              const stat = Fs.statSync(srcRepo)
+              if (stat.isDirectory()) {
+                Fs.cpSync(srcRepo, destRepo, { recursive: true })
+              }
+            } catch {
+              // Ignore single item error
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to merge legacy data to single directory', e)
+  }
+}
+
+/**
  * Ensures the single directory layout exists on disk:
  * - Root unified directory
  * - 'profile' subdirectory with initial .gitconfig including ~/.gitconfig
  * - 'repo tree' subdirectory for cloned repositories
+ * - Merges any existing data across dev and release directories into one
  */
 export function ensureSingleDirectoryStructure(): void {
   const singleDir = getSingleDirectoryPath()
@@ -112,6 +169,8 @@ export function ensureSingleDirectoryStructure(): void {
         '# GitHub Desktop Unified Profile\n[include]\n\tpath = ~/.gitconfig\n'
       Fs.writeFileSync(gitConfigPath, initialConfig, 'utf8')
     }
+
+    mergeAllDataToOne()
 
     process.env.GIT_CONFIG_GLOBAL = gitConfigPath
   } catch (e) {

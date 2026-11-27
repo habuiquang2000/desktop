@@ -28,6 +28,7 @@ import { BypassReasonType } from '../ui/secret-scanning/bypass-push-protection-d
 import { TerminalOutput, TerminalOutputListener } from '../lib/git'
 import type { IBYOKModel, IBYOKProvider } from '../lib/copilot/byok'
 import { IDeleteWorktreeOptions, WorktreeEntry } from './worktree'
+import { ICustomProjectScript } from '../lib/custom-scripts'
 
 export enum PopupType {
   RenameBranch = 'RenameBranch',
@@ -128,6 +129,9 @@ export enum PopupType {
   ConfirmDeleteCopilotBYOKProvider = 'ConfirmDeleteCopilotBYOKProvider',
   CopilotConflictResolutionAlwaysNudge = 'CopilotConflictResolutionAlwaysNudge',
   DeleteWorktreeFailed = 'DeleteWorktreeFailed',
+  CustomScriptOutput = 'CustomScriptOutput',
+  EditCustomScript = 'EditCustomScript',
+  QuickSearchCommand = 'QuickSearchCommand',
 }
 
 interface IBasePopup {
@@ -580,6 +584,20 @@ export type PopupDetail =
     }
   | {
       type: PopupType.MirrorRepository
+      repository: Repository
+    }
+  | {
+      type: PopupType.CustomScriptOutput
+      repository: Repository
+    }
+  | {
+      type: PopupType.EditCustomScript
+      repository: Repository
+      script?: ICustomProjectScript
+      onSave?: (script: ICustomProjectScript) => void
+    }
+  | {
+      type: PopupType.QuickSearchCommand
       repository: Repository
     }
 export type Popup = IBasePopup & PopupDetail

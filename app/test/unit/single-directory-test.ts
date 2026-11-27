@@ -11,6 +11,7 @@ import {
   getRepoTreeDirectoryPath,
   getProfileGitConfigPath,
   ensureSingleDirectoryStructure,
+  mergeAllDataToOne,
 } from '../../src/lib/single-directory'
 
 describe('single-directory', () => {
@@ -91,6 +92,28 @@ describe('single-directory', () => {
         process.env.GIT_CONFIG_GLOBAL = originalGitConfigGlobal
       } else {
         delete process.env.GIT_CONFIG_GLOBAL
+      }
+      Fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it('merges legacy data and repositories into single directory', () => {
+    const originalHome = process.env.GITHUB_DESKTOP_HOME
+    const tempDir = Path.join(Os.tmpdir(), `gh-single-dir-merge-${Date.now()}`)
+
+    try {
+      process.env.GITHUB_DESKTOP_HOME = tempDir
+      ensureSingleDirectoryStructure()
+      mergeAllDataToOne()
+
+      assert.ok(Fs.existsSync(tempDir))
+      assert.ok(Fs.existsSync(Path.join(tempDir, 'profile')))
+      assert.ok(Fs.existsSync(Path.join(tempDir, 'repo tree')))
+    } finally {
+      if (originalHome !== undefined) {
+        process.env.GITHUB_DESKTOP_HOME = originalHome
+      } else {
+        delete process.env.GITHUB_DESKTOP_HOME
       }
       Fs.rmSync(tempDir, { recursive: true, force: true })
     }

@@ -464,6 +464,7 @@ export enum FoldoutType {
   Worktree,
   AccountSwitcher,
   Remote,
+  CustomScript,
 }
 
 export type AppMenuFoldout = {
@@ -490,6 +491,7 @@ export type Foldout =
   | { type: FoldoutType.Worktree }
   | { type: FoldoutType.AccountSwitcher }
   | { type: FoldoutType.Remote }
+  | { type: FoldoutType.CustomScript }
 
 export enum RepositorySectionTab {
   Changes,
