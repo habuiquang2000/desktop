@@ -167,4 +167,101 @@ describe('Custom Scripts model, storage and runner', () => {
       'Output should contain CUSTOM_SCRIPT_OUTPUT_OK'
     )
   })
+
+  it('prepends Git directories to PATH on Windows to avoid WSL bash conflicts', async () => {
+    if (process.platform === 'win32') {
+      const tempDir = await Fs.mkdtemp(
+        Path.join(Os.tmpdir(), 'desktop-test-shell-')
+      )
+      const scriptFile = Path.join(tempDir, 'test-sh.sh')
+      await Fs.writeFile(scriptFile, '#!/bin/sh\necho SHELL_EXEC_OK\n')
+
+      const runner = CustomScriptRunner.getInstance()
+      const script: ICustomProjectScript = {
+        id: 'test-sh-run',
+        name: 'Shell Test',
+        command: `sh "${scriptFile}"`,
+        source: 'file',
+      }
+
+      let finishedState: any = null
+      const disposable = runner.onExecutionChanged((_repoKey, state) => {
+        if (state && (state.status === 'success' || state.status === 'failed')) {
+          finishedState = state
+        }
+      })
+
+      try {
+        await runner.run(repository, script)
+
+        for (let i = 0; i < 40; i++) {
+          if (finishedState) {
+            break
+          }
+          await new Promise(r => setTimeout(r, 100))
+        }
+
+        disposable.dispose()
+
+        if (finishedState?.status !== 'success') {
+          console.log('Failed shell test output:', finishedState?.output)
+        }
+
+        assert.ok(finishedState, 'Script should have finished execution')
+        assert.equal(finishedState.status, 'success')
+        assert.equal(finishedState.exitCode, 0)
+        assert.ok(
+          finishedState.output.some((line: string) =>
+            line.includes('SHELL_EXEC_OK')
+          ),
+          'Output should contain SHELL_EXEC_OK'
+        )
+
+        // Also test bash command explicitly
+        let finishedBashState: any = null
+        const bashDisposable = runner.onExecutionChanged((_repoKey, state) => {
+          if (
+            state &&
+            (state.status === 'success' || state.status === 'failed')
+          ) {
+            finishedBashState = state
+          }
+        })
+
+        const bashScript: ICustomProjectScript = {
+          id: 'test-bash-run',
+          name: 'Bash Test',
+          command: `bash "${scriptFile}"`,
+          source: 'file',
+        }
+
+        await runner.run(repository, bashScript)
+
+        for (let i = 0; i < 40; i++) {
+          if (finishedBashState) {
+            break
+          }
+          await new Promise(r => setTimeout(r, 100))
+        }
+
+        bashDisposable.dispose()
+
+        if (finishedBashState?.status !== 'success') {
+          console.log('Failed bash test output:', finishedBashState?.output)
+        }
+
+        assert.ok(finishedBashState, 'Bash script should have finished execution')
+        assert.equal(finishedBashState.status, 'success')
+        assert.equal(finishedBashState.exitCode, 0)
+        assert.ok(
+          finishedBashState.output.some((line: string) =>
+            line.includes('SHELL_EXEC_OK')
+          ),
+          'Output should contain SHELL_EXEC_OK'
+        )
+      } finally {
+        await Fs.rm(tempDir, { recursive: true, force: true })
+      }
+    }
+  })
 })

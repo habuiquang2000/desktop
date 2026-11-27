@@ -1,9 +1,106 @@
 import { spawn, ChildProcess } from 'child_process'
+import * as Path from 'path'
+import * as Fs from 'fs'
+import which from 'which'
 import { Repository } from '../../models/repository'
 import { ICustomProjectScript, IScriptRunState } from './custom-script'
 import { Emitter, Disposable } from 'event-kit'
 
 const MAX_OUTPUT_LINES = 5000
+
+/**
+ * Resolves Git bin and usr/bin directories on Windows so that Git Bash / sh take precedence over
+ * Windows System32\bash.exe (WSL launcher).
+ */
+export function getGitDirectoriesOnWindows(): ReadonlyArray<string> {
+  if (process.platform !== 'win32') {
+    return []
+  }
+
+  const candidateDirs = new Set<string>()
+
+  // 1. Try resolving git executable using which
+  try {
+    const gitExe = which.sync('git', { nothrow: true })
+    if (gitExe) {
+      const gitDir = Path.dirname(gitExe)
+      candidateDirs.add(gitDir)
+      candidateDirs.add(Path.resolve(gitDir, '../bin'))
+      candidateDirs.add(Path.resolve(gitDir, '../usr/bin'))
+      candidateDirs.add(Path.resolve(gitDir, '../../bin'))
+      candidateDirs.add(Path.resolve(gitDir, '../../usr/bin'))
+    }
+  } catch {
+    // Ignore error if which fails
+  }
+
+  // 2. Also check common directories in process.env.PATH
+  const currentPath = process.env.PATH || process.env.Path || ''
+  for (const part of currentPath.split(';')) {
+    const trimmed = part.trim()
+    if (!trimmed) {
+      continue
+    }
+    const lower = trimmed.toLowerCase()
+    if (lower.includes('git')) {
+      candidateDirs.add(trimmed)
+      candidateDirs.add(Path.resolve(trimmed, '../bin'))
+      candidateDirs.add(Path.resolve(trimmed, '../usr/bin'))
+    }
+  }
+
+  // 3. Fallback standard Git for Windows install locations
+  const systemDrive = process.env.SystemDrive || 'C:'
+  const standardPaths = [
+    Path.join(systemDrive, 'Program Files', 'Git', 'bin'),
+    Path.join(systemDrive, 'Program Files', 'Git', 'usr', 'bin'),
+    Path.join(systemDrive, 'Program Files (x86)', 'Git', 'bin'),
+    Path.join(systemDrive, 'Program Files (x86)', 'Git', 'usr', 'bin'),
+  ]
+  if (process.env.LOCALAPPDATA) {
+    standardPaths.push(
+      Path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'bin'),
+      Path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'usr', 'bin')
+    )
+  }
+
+  for (const p of standardPaths) {
+    candidateDirs.add(p)
+  }
+
+  // Filter only directories that actually exist on disk
+  const existingDirs: string[] = []
+  for (const dir of candidateDirs) {
+    try {
+      if (Fs.existsSync(dir)) {
+        existingDirs.push(dir)
+      }
+    } catch {
+      // Ignore filesystem permission errors
+    }
+  }
+
+  return existingDirs
+}
+
+export function getScriptExecutionEnvironment(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    FORCE_COLOR: '1',
+  }
+
+  if (process.platform === 'win32') {
+    const gitDirs = getGitDirectoriesOnWindows()
+    if (gitDirs.length > 0) {
+      const currentPath = env.PATH || env.Path || ''
+      const updatedPath = [...gitDirs, currentPath].filter(Boolean).join(';')
+      env.PATH = updatedPath
+      env.Path = updatedPath
+    }
+  }
+
+  return env
+}
 
 export class CustomScriptRunner {
   private static instance: CustomScriptRunner | null = null
@@ -71,15 +168,32 @@ export class CustomScriptRunner {
     }
 
     const isWindows = process.platform === 'win32'
+    let commandToRun = script.command
+    const env = getScriptExecutionEnvironment()
+
+    if (isWindows) {
+      const gitDirs = getGitDirectoriesOnWindows()
+      const bashPattern = /^bash(?:\.exe)?\s+/i
+      if (bashPattern.test(commandToRun)) {
+        const hasBash = gitDirs.some(d =>
+          Fs.existsSync(Path.join(d, 'bash.exe'))
+        )
+        const hasSh = gitDirs.some(d => Fs.existsSync(Path.join(d, 'sh.exe')))
+        if (!hasBash && hasSh) {
+          commandToRun = commandToRun.replace(bashPattern, 'sh ')
+        }
+      }
+    }
+
     const shellExec = isWindows
       ? process.env.ComSpec || 'cmd.exe'
       : process.env.SHELL || '/bin/sh'
     const shellArgs = isWindows
-      ? ['/d', '/s', '/c', script.command]
-      : ['-c', script.command]
+      ? ['/d', '/s', '/c', commandToRun]
+      : ['-c', commandToRun]
 
     const initialOutput: string[] = [
-      `[antigravity] Running: ${script.command}`,
+      `[antigravity] Running: ${commandToRun}`,
       `[antigravity] Working Directory: ${workingDirectory}`,
       `------------------------------------------------------------`,
     ]
@@ -98,14 +212,20 @@ export class CustomScriptRunner {
 
     let child: ChildProcess
     try {
-      child = spawn(shellExec, shellArgs, {
-        cwd: workingDirectory,
-        env: {
-          ...process.env,
-          FORCE_COLOR: '1',
-        },
-        windowsHide: true,
-      })
+      if (isWindows) {
+        child = spawn(shellExec, ['/d', '/s', '/c', `"${commandToRun}"`], {
+          cwd: workingDirectory,
+          env,
+          windowsVerbatimArguments: true,
+          windowsHide: true,
+        })
+      } else {
+        child = spawn(shellExec, shellArgs, {
+          cwd: workingDirectory,
+          env,
+          windowsHide: true,
+        })
+      }
     } catch (err) {
       const errorMsg = `[antigravity] Failed to spawn process: ${
         err instanceof Error ? err.message : String(err)
@@ -238,11 +358,13 @@ export class CustomScriptRunner {
   ): void {
     const key = this.getRepoKey(repository)
     const isWindows = process.platform === 'win32'
+    const env = getScriptExecutionEnvironment()
 
     try {
       if (isWindows) {
         spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/k', script.command], {
           cwd: workingDirectory,
+          env,
           shell: true,
           detached: true,
         })

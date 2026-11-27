@@ -45,6 +45,7 @@ import { TitleBar, ZoomInfo, FullScreenInfo } from './window'
 
 import { RepositoriesList } from './repositories-list'
 import { Resizable } from './resizable'
+import { DraggablePanelBar } from './popout'
 import { RepositoryView } from './repository'
 import { RenameBranch } from './rename-branch'
 import { DeleteBranch, DeleteRemoteBranch } from './delete-branch'
@@ -61,7 +62,7 @@ import {
   CustomScriptDropdown,
   RevertProgress,
 } from './toolbar'
-import { iconForRepository, OcticonSymbol } from './octicons'
+import { iconForRepository, OcticonSymbol, Octicon } from './octicons'
 import * as octicons from './octicons/octicons.generated'
 import {
   showCertificateTrustDialog,
@@ -3513,6 +3514,16 @@ export class App extends React.Component<IAppProps, IAppState> {
         onResize={this.handleDockedRepositoryListResize}
         description="Docked repository list"
       >
+        <DraggablePanelBar
+          label="Repository List"
+          onDragOut={this.onToggleDockRepositoryList}
+          className="docked-panel-bar"
+        >
+          <div className="docked-panel-title">
+            <Octicon symbol={octicons.repo} />
+            <span>Repositories</span>
+          </div>
+        </DraggablePanelBar>
         {this.renderRepositoryList(true)}
       </Resizable>
     )

@@ -8,7 +8,7 @@ import { NoChanges } from './changes/no-changes'
 import { MultipleSelection } from './changes/multiple-selection'
 import { FilesChangedBadge } from './changes/files-changed-badge'
 import { SelectedCommits, CompareSidebar } from './history'
-import { DetachedPanel, DragHandleOut } from './popout'
+import { DetachedPanel, DraggablePanelBar } from './popout'
 import * as octicons from './octicons/octicons.generated'
 import { Resizable } from './resizable'
 import { TabBar } from './tab-bar'
@@ -265,7 +265,11 @@ export class RepositoryView extends React.Component<
         : Tab.History
 
     return (
-      <div className="tab-bar-container">
+      <DraggablePanelBar
+        label="Sidebar"
+        onDragOut={this.onDetachSidebar}
+        className="sidebar-tab-bar-container"
+      >
         <TabBar selectedIndex={selectedTab} onTabClicked={this.onTabClicked}>
           <span className="with-indicator" id="changes-tab">
             <span>Changes</span>
@@ -276,15 +280,7 @@ export class RepositoryView extends React.Component<
             <span>History</span>
           </div>
         </TabBar>
-
-        <DragHandleOut
-          label="Sidebar"
-          onDragOut={this.onDetachSidebar}
-          compact={true}
-          className="sidebar-drag-handle"
-          tooltip="Click or drag handle out to undock sidebar into external window"
-        />
-      </div>
+      </DraggablePanelBar>
     )
   }
 

@@ -8,7 +8,7 @@ import { mapStatus } from '../../lib/status'
 import { DiffOptions } from './diff-options'
 import { Tooltip, TooltipDirection } from '../lib/tooltip'
 import { createObservableRef } from '../lib/observable-ref'
-import { PopoutControls } from '../popout/popout-controls'
+import { DraggablePanelBar } from '../popout'
 
 interface IDiffHeaderProps {
   readonly path: string
@@ -58,33 +58,22 @@ export class DiffHeader extends React.Component<IDiffHeaderProps, {}> {
     const fileStatus = mapStatus(status)
 
     return (
-      <div className="header">
+      <DraggablePanelBar
+        label="Diff"
+        onDragOut={this.props.onDetachDiff}
+        className="header diff-header"
+      >
         <PathLabel path={this.props.path} status={this.props.status} />
 
         {this.renderCodeEditorControls()}
         {this.renderDiffOptions()}
-        {this.renderPopoutControls()}
 
         <Octicon
           symbol={iconForStatus(status)}
           className={'status status-' + fileStatus.toLowerCase()}
           title={fileStatus}
         />
-      </div>
-    )
-  }
-
-  private renderPopoutControls() {
-    if (!this.props.onDetachDiff) {
-      return null
-    }
-
-    return (
-      <PopoutControls
-        label="Diff"
-        onDetach={this.props.onDetachDiff}
-        compact={true}
-      />
+      </DraggablePanelBar>
     )
   }
 

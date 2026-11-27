@@ -248,7 +248,7 @@ function buildCommandForScriptFile(relativePath: string, ext: string): string {
         : `pwsh -File "./${relativePath}"`
     case '.sh':
     case '.bash':
-      return `bash "./${relativePath}"`
+      return isWindows ? `sh "./${relativePath}"` : `bash "./${relativePath}"`
     case '.bat':
     case '.cmd':
       return isWindows

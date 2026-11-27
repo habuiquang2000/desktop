@@ -2,7 +2,6 @@ import * as React from 'react'
 import classNames from 'classnames'
 
 import { commitGrammar, RepositoryListItem } from './repository-list-item'
-import { DragHandleOut } from '../popout/drag-handle-out'
 import {
   groupRepositories,
   IRepositoryListItem,
@@ -416,28 +415,14 @@ export class RepositoriesList extends React.Component<
           <Octicon symbol={octicons.triangleDown} />
         </Button>
         {this.props.onToggleDock && (
-          <>
-            <DragHandleOut
-              label="Repository List"
-              onDragOut={this.props.onToggleDock}
-              onClick={this.props.onToggleDock}
-              tooltip={
-                isDocked
-                  ? 'Drag handle out to undock repository list'
-                  : 'Drag handle out to dock repository list to sidebar'
-              }
-              compact={true}
-              className="repo-list-drag-handle"
-            />
-            <Button
-              className={classNames('dock-toggle-button', { docked: isDocked })}
-              onClick={this.props.onToggleDock}
-              tooltip={dockTooltip}
-              ariaLabel={dockTooltip}
-            >
-              <Octicon symbol={isDocked ? octicons.pinSlash : octicons.pin} />
-            </Button>
-          </>
+          <Button
+            className={classNames('dock-toggle-button', { docked: isDocked })}
+            onClick={this.props.onToggleDock}
+            tooltip={dockTooltip}
+            ariaLabel={dockTooltip}
+          >
+            <Octicon symbol={isDocked ? octicons.pinSlash : octicons.pin} />
+          </Button>
         )}
       </div>
     )

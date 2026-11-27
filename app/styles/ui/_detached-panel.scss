@@ -82,6 +82,74 @@
   }
 }
 
+// Photoshop-style draggable panel top bar
+.draggable-panel-bar {
+  position: relative;
+
+  &.can-drag {
+    cursor: grab;
+
+    &:active,
+    &.is-dragging {
+      cursor: grabbing;
+    }
+
+    button,
+    input,
+    a,
+    .tab-bar-item,
+    [role='button'],
+    [role='tab'] {
+      cursor: pointer;
+    }
+
+    input,
+    textarea {
+      cursor: text;
+    }
+  }
+}
+
+.docked-panel-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 29px;
+  padding: 0 var(--spacing);
+  background-color: var(--box-alt-background-color);
+  border-bottom: 1px solid var(--box-border-color);
+  flex-shrink: 0;
+
+  .docked-panel-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-half);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-color);
+    letter-spacing: 0.3px;
+    user-select: none;
+
+    .octicon {
+      color: var(--text-secondary-color);
+    }
+  }
+}
+
+.sidebar-tab-bar-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  position: relative;
+  background: var(--background-color);
+
+  .tab-bar {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 // Drag handle out component styles
 .drag-handle-out-wrapper {
   display: inline-flex;
