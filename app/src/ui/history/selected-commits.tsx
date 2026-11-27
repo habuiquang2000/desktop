@@ -63,6 +63,9 @@ interface ISelectedCommitsProps {
   readonly onViewCommitOnGitHub: (SHA: string, filePath?: string) => void
   readonly hideWhitespaceInDiff: boolean
 
+  /** Called when the user clicks or drags to pop out the diff */
+  readonly onDetachDiff?: (screenX?: number, screenY?: number) => void
+
   /** Whether we should display side by side diffs. */
   readonly showSideBySideDiff: boolean
 
@@ -194,6 +197,7 @@ export class SelectedCommits extends React.Component<
         hideWhitespaceInDiff={this.props.hideWhitespaceInDiff}
         onHideWhitespaceInDiffChanged={this.onHideWhitespaceInDiffChanged}
         onDiffOptionsOpened={this.props.onDiffOptionsOpened}
+        onDetachDiff={this.props.onDetachDiff}
       />
     )
   }

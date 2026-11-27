@@ -217,30 +217,57 @@ export class CustomScriptDropdown extends React.Component<
     this.props.dispatcher.stopCustomScript(this.props.repository)
   }
 
-  private onQuickCommandChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    this.setState({ quickCommand: e.target.value })
-  }
-
-  private onQuickCommandSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = this.state.quickCommand.trim()
+  private onQuickCommandSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    const trimmed = (this.state.searchFilter || this.state.quickCommand).trim()
     if (trimmed.length === 0) {
       return
     }
 
-    const adHocScript: ICustomProjectScript = {
-      id: `adhoc-${Date.now()}`,
-      name: trimmed,
-      command: trimmed,
-      source: 'custom',
-    }
+    const all = [...this.state.customScripts, ...this.state.detectedScripts]
+    const match = all.find(
+      s =>
+        s.name.toLowerCase() === trimmed.toLowerCase() ||
+        s.command.toLowerCase() === trimmed.toLowerCase()
+    )
 
-    this.setState({ quickCommand: '' })
+    const targetScript: ICustomProjectScript =
+      match ?? {
+        id: `adhoc-${Date.now()}`,
+        name: trimmed,
+        command: trimmed,
+        source: 'custom',
+      }
+
+    this.setState({ quickCommand: '', searchFilter: '' })
     this.props.dispatcher.closeFoldout(FoldoutType.CustomScript)
     await this.props.dispatcher.runCustomScript(
       this.props.repository,
-      adHocScript
+      targetScript
     )
+  }
+
+  private onOpenQuickSearchCommand = () => {
+    this.props.dispatcher.closeFoldout(FoldoutType.CustomScript)
+    this.props.dispatcher.showQuickSearchCommand(this.props.repository)
+  }
+
+  private onSearchFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    this.setState({
+      searchFilter: e.target.value,
+      quickCommand: e.target.value,
+    })
+  }
+
+  private onSearchFilterKeyDown = async (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      await this.onQuickCommandSubmit()
+    } else if (e.key === 'Escape') {
+      this.setState({ searchFilter: '', quickCommand: '' })
+    }
   }
 
   private renderDropdownContent = (): JSX.Element => {
@@ -249,10 +276,35 @@ export class CustomScriptDropdown extends React.Component<
       detectedScripts,
       hotScriptId,
       execution,
-      quickCommand,
+      searchFilter,
     } = this.state
     const isRunning = execution?.status === 'running'
     const hotScript = this.getHotScript()
+
+    const filter = searchFilter.trim().toLowerCase()
+    const filteredCustomScripts =
+      filter.length === 0
+        ? customScripts
+        : customScripts.filter(
+            s =>
+              s.name.toLowerCase().includes(filter) ||
+              s.command.toLowerCase().includes(filter)
+          )
+
+    const filteredDetectedScripts =
+      filter.length === 0
+        ? detectedScripts
+        : detectedScripts.filter(
+            s =>
+              s.name.toLowerCase().includes(filter) ||
+              s.command.toLowerCase().includes(filter)
+          )
+
+    const showHotScript =
+      hotScript &&
+      (filter.length === 0 ||
+        hotScript.name.toLowerCase().includes(filter) ||
+        hotScript.command.toLowerCase().includes(filter))
 
     return (
       <div className="custom-script-dropdown-foldout">
@@ -261,6 +313,15 @@ export class CustomScriptDropdown extends React.Component<
             Project Scripts
           </span>
           <div className="custom-script-dropdown-header-actions">
+            <button
+              type="button"
+              className="custom-script-header-btn"
+              onClick={this.onOpenQuickSearchCommand}
+              title="Quick Search Command Palette (Ctrl+K)"
+            >
+              <Octicon symbol={octicons.search} />
+              Quick Search
+            </button>
             <button
               type="button"
               className="custom-script-header-btn"
@@ -334,20 +395,35 @@ export class CustomScriptDropdown extends React.Component<
         )}
 
         <form
-          className="custom-script-quick-form"
+          className="custom-script-search-bar custom-script-quick-form"
           onSubmit={this.onQuickCommandSubmit}
         >
+          <Octicon symbol={octicons.search} className="search-bar-icon" />
           <input
             type="text"
-            className="custom-script-quick-input"
-            placeholder="Run quick command in project..."
-            value={quickCommand}
-            onChange={this.onQuickCommandChange}
+            className="custom-script-search-input custom-script-quick-input"
+            placeholder="Search scripts or type command to run (↵)..."
+            value={searchFilter}
+            onChange={this.onSearchFilterChange}
+            onKeyDown={this.onSearchFilterKeyDown}
           />
+          {searchFilter.length > 0 && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() =>
+                this.setState({ searchFilter: '', quickCommand: '' })
+              }
+              title="Clear search"
+            >
+              <Octicon symbol={octicons.x} />
+            </button>
+          )}
           <button
             type="submit"
             className="custom-script-quick-run-btn"
-            disabled={quickCommand.trim().length === 0}
+            disabled={searchFilter.trim().length === 0}
+            title="Run command"
           >
             <Octicon symbol={octicons.play} />
           </button>
@@ -355,7 +431,7 @@ export class CustomScriptDropdown extends React.Component<
 
         <div className="custom-script-dropdown-list">
           {/* Hot Script Highlight Section */}
-          {hotScript && (
+          {showHotScript && (
             <div className="custom-script-section">
               <div className="custom-script-section-title">
                 <Octicon symbol={octicons.starFill} className="star-icon" />
@@ -387,12 +463,12 @@ export class CustomScriptDropdown extends React.Component<
           )}
 
           {/* User Custom Scripts Section */}
-          {customScripts.length > 0 && (
+          {filteredCustomScripts.length > 0 && (
             <div className="custom-script-section">
               <div className="custom-script-section-title">
-                Custom Scripts ({customScripts.length})
+                Custom Scripts ({filteredCustomScripts.length})
               </div>
-              {customScripts.map(script => {
+              {filteredCustomScripts.map(script => {
                 const isHot = hotScriptId === script.id
                 return (
                   <div key={script.id} className="custom-script-item">
@@ -454,12 +530,12 @@ export class CustomScriptDropdown extends React.Component<
           )}
 
           {/* Detected Project Scripts Section */}
-          {detectedScripts.length > 0 && (
+          {filteredDetectedScripts.length > 0 && (
             <div className="custom-script-section">
               <div className="custom-script-section-title">
-                Detected Scripts ({detectedScripts.length})
+                Detected Scripts ({filteredDetectedScripts.length})
               </div>
-              {detectedScripts.map(script => {
+              {filteredDetectedScripts.map(script => {
                 const isHot = hotScriptId === script.id
                 return (
                   <div key={script.id} className="custom-script-item">
@@ -507,12 +583,25 @@ export class CustomScriptDropdown extends React.Component<
             </div>
           )}
 
-          {customScripts.length === 0 && detectedScripts.length === 0 && (
-            <div className="custom-script-empty">
-              No scripts found in project. Click &ldquo;Add&rdquo; above to
-              create one.
-            </div>
-          )}
+          {filter.length > 0 &&
+            filteredCustomScripts.length === 0 &&
+            filteredDetectedScripts.length === 0 && (
+              <div className="custom-script-no-results">
+                <span>
+                  No matching scripts. Press <kbd>Enter</kbd> to run &ldquo;
+                  {searchFilter.trim()}&rdquo; as a custom command.
+                </span>
+              </div>
+            )}
+
+          {filter.length === 0 &&
+            customScripts.length === 0 &&
+            detectedScripts.length === 0 && (
+              <div className="custom-script-empty">
+                No scripts found in project. Click &ldquo;Add&rdquo; above to
+                create one.
+              </div>
+            )}
         </div>
       </div>
     )

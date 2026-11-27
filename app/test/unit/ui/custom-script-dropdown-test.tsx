@@ -136,4 +136,71 @@ describe('CustomScriptDropdown toolbar component', () => {
     const commandTexts = screen.getAllByText('npm run lint')
     assert.ok(commandTexts.length > 0)
   })
+
+  it('triggers showQuickSearchCommand when Quick Search header button is clicked', () => {
+    let quickSearchOpened = false
+    const dispatcher = {
+      closeFoldout: () => {},
+      showQuickSearchCommand: (_repo: Repository) => {
+        quickSearchOpened = true
+      },
+    } as unknown as Dispatcher
+
+    render(
+      <CustomScriptDropdown
+        dispatcher={dispatcher}
+        repository={repository}
+        isOpen={true}
+        onDropDownStateChanged={() => {}}
+        enableFocusTrap={false}
+      />
+    )
+
+    const searchButton = screen.getByText('Quick Search')
+    assert.ok(searchButton)
+    fireEvent.click(searchButton)
+
+    assert.equal(quickSearchOpened, true)
+  })
+
+  it('filters scripts inside the dropdown search bar', () => {
+    const s1: ICustomProjectScript = {
+      id: 'script-alpha',
+      name: 'Alpha Build',
+      command: 'npm run alpha',
+      source: 'custom',
+    }
+    const s2: ICustomProjectScript = {
+      id: 'script-beta',
+      name: 'Beta Test',
+      command: 'npm run beta',
+      source: 'custom',
+    }
+    saveCustomScript(repository, s1)
+    saveCustomScript(repository, s2)
+
+    const dispatcher = {} as Dispatcher
+
+    render(
+      <CustomScriptDropdown
+        dispatcher={dispatcher}
+        repository={repository}
+        isOpen={true}
+        onDropDownStateChanged={() => {}}
+        enableFocusTrap={false}
+      />
+    )
+
+    const list = document.querySelector('.custom-script-dropdown-list')!
+    assert.ok(list.textContent?.includes('Alpha Build'))
+    assert.ok(list.textContent?.includes('Beta Test'))
+
+    const searchInput = screen.getByPlaceholderText(
+      'Search scripts or type command to run (↵)...'
+    )
+    fireEvent.change(searchInput, { target: { value: 'beta' } })
+
+    assert.equal(list.textContent?.includes('Alpha Build'), false)
+    assert.ok(list.textContent?.includes('Beta Test'))
+  })
 })

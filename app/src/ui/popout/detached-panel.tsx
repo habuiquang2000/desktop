@@ -28,6 +28,9 @@ interface IDetachedPanelProps {
 
   /** Class name to apply to the container */
   readonly className?: string
+
+  /** Initial screen coordinates (from a drag-out drop) to place the new window */
+  readonly initialPosition?: { readonly x: number; readonly y: number }
 }
 
 interface IDetachedPanelState {
@@ -78,11 +81,21 @@ export class DetachedPanel extends React.Component<
       return
     }
 
-    const { id, title } = this.props
+    const { id, title, initialPosition } = this.props
+    const targetWidth = 1100
+    const targetHeight = 800
+
+    let positionFeatures = ''
+    if (initialPosition) {
+      const left = Math.max(0, Math.round(initialPosition.x - targetWidth / 2))
+      const top = Math.max(0, Math.round(initialPosition.y - 40))
+      positionFeatures = `,left=${left},top=${top}`
+    }
+
     const win = window.open(
       'about:blank',
       `github-desktop-detached-${id}`,
-      'width=1100,height=800,menubar=no,toolbar=no,location=no,status=no'
+      `width=${targetWidth},height=${targetHeight}${positionFeatures},menubar=no,toolbar=no,location=no,status=no`
     )
 
     if (!win) {

@@ -8,6 +8,8 @@ import { NoChanges } from './changes/no-changes'
 import { MultipleSelection } from './changes/multiple-selection'
 import { FilesChangedBadge } from './changes/files-changed-badge'
 import { SelectedCommits, CompareSidebar } from './history'
+import { DetachedPanel, DragHandleOut } from './popout'
+import * as octicons from './octicons/octicons.generated'
 import { Resizable } from './resizable'
 import { TabBar } from './tab-bar'
 import {
@@ -148,6 +150,10 @@ interface IRepositoryViewProps {
 interface IRepositoryViewState {
   readonly changesListScrollTop: number
   readonly compareListScrollTop: number
+  readonly isSidebarDetached: boolean
+  readonly isDiffDetached: boolean
+  readonly sidebarPosition?: { readonly x: number; readonly y: number }
+  readonly diffPosition?: { readonly x: number; readonly y: number }
 }
 
 const enum Tab {
@@ -178,6 +184,8 @@ export class RepositoryView extends React.Component<
     this.state = {
       changesListScrollTop: 0,
       compareListScrollTop: 0,
+      isSidebarDetached: false,
+      isDiffDetached: false,
     }
   }
 
@@ -199,6 +207,40 @@ export class RepositoryView extends React.Component<
 
   private onChangesListScrolled = (scrollTop: number) => {
     this.setState({ changesListScrollTop: scrollTop })
+  }
+
+  private onDetachSidebar = (screenX?: number, screenY?: number) => {
+    this.setState({
+      isSidebarDetached: true,
+      sidebarPosition:
+        screenX !== undefined && screenY !== undefined
+          ? { x: screenX, y: screenY }
+          : undefined,
+    })
+  }
+
+  private onReattachSidebar = () => {
+    this.setState({
+      isSidebarDetached: false,
+      sidebarPosition: undefined,
+    })
+  }
+
+  private onDetachDiff = (screenX?: number, screenY?: number) => {
+    this.setState({
+      isDiffDetached: true,
+      diffPosition:
+        screenX !== undefined && screenY !== undefined
+          ? { x: screenX, y: screenY }
+          : undefined,
+    })
+  }
+
+  private onReattachDiff = () => {
+    this.setState({
+      isDiffDetached: false,
+      diffPosition: undefined,
+    })
   }
 
   private onCompareListScrolled = (scrollTop: number) => {
@@ -223,16 +265,26 @@ export class RepositoryView extends React.Component<
         : Tab.History
 
     return (
-      <TabBar selectedIndex={selectedTab} onTabClicked={this.onTabClicked}>
-        <span className="with-indicator" id="changes-tab">
-          <span>Changes</span>
-          {this.renderChangesBadge()}
-        </span>
+      <div className="tab-bar-container">
+        <TabBar selectedIndex={selectedTab} onTabClicked={this.onTabClicked}>
+          <span className="with-indicator" id="changes-tab">
+            <span>Changes</span>
+            {this.renderChangesBadge()}
+          </span>
 
-        <div className="with-indicator" id="history-tab">
-          <span>History</span>
-        </div>
-      </TabBar>
+          <div className="with-indicator" id="history-tab">
+            <span>History</span>
+          </div>
+        </TabBar>
+
+        <DragHandleOut
+          label="Sidebar"
+          onDragOut={this.onDetachSidebar}
+          compact={true}
+          className="sidebar-drag-handle"
+          tooltip="Click or drag handle out to undock sidebar into external window"
+        />
+      </div>
     )
   }
 
@@ -420,20 +472,31 @@ export class RepositoryView extends React.Component<
 
   private renderSidebar(): JSX.Element {
     return (
-      <FocusContainer onFocusWithinChanged={this.onSidebarFocusWithinChanged}>
-        <Resizable
-          id="repository-sidebar"
-          width={this.props.sidebarWidth.value}
-          maximumWidth={this.props.sidebarWidth.max}
-          minimumWidth={this.props.sidebarWidth.min}
-          onReset={this.handleSidebarWidthReset}
-          onResize={this.handleSidebarResize}
-          description="Repository sidebar"
-        >
-          {this.renderTabs()}
-          {this.renderSidebarContents()}
-        </Resizable>
-      </FocusContainer>
+      <DetachedPanel
+        id="sidebar"
+        title="Repository Sidebar"
+        isDetached={this.state.isSidebarDetached}
+        onReattach={this.onReattachSidebar}
+        initialPosition={this.state.sidebarPosition}
+        icon={octicons.sidebarCollapse}
+        placeholderDescription="Sidebar is popped out in a separate floating window."
+        className="repository-sidebar-panel"
+      >
+        <FocusContainer onFocusWithinChanged={this.onSidebarFocusWithinChanged}>
+          <Resizable
+            id="repository-sidebar"
+            width={this.props.sidebarWidth.value}
+            maximumWidth={this.props.sidebarWidth.max}
+            minimumWidth={this.props.sidebarWidth.min}
+            onReset={this.handleSidebarWidthReset}
+            onResize={this.handleSidebarResize}
+            description="Repository sidebar"
+          >
+            {this.renderTabs()}
+            {this.renderSidebarContents()}
+          </Resizable>
+        </FocusContainer>
+      </DetachedPanel>
     )
   }
 
@@ -531,6 +594,7 @@ export class RepositoryView extends React.Component<
         onDiffOptionsOpened={this.onDiffOptionsOpened}
         showDragOverlay={showDragOverlay}
         accounts={this.props.accounts}
+        onDetachDiff={this.onDetachDiff}
       />
     )
   }
@@ -633,6 +697,7 @@ export class RepositoryView extends React.Component<
             this.props.askForConfirmationOnDiscardChanges
           }
           onDiffOptionsOpened={this.onDiffOptionsOpened}
+          onDetachDiff={this.onDetachDiff}
         />
       )
     }
@@ -653,13 +718,33 @@ export class RepositoryView extends React.Component<
 
   private renderContent(): JSX.Element | null {
     const selectedSection = this.props.state.selectedSection
+    let content: JSX.Element | null = null
     if (selectedSection === RepositorySectionTab.Changes) {
-      return this.renderContentForChanges()
+      content = this.renderContentForChanges()
     } else if (selectedSection === RepositorySectionTab.History) {
-      return this.renderContentForHistory()
+      content = this.renderContentForHistory()
     } else {
-      return assertNever(selectedSection, 'Unknown repository section')
+      content = assertNever(selectedSection, 'Unknown repository section')
     }
+
+    if (!content) {
+      return null
+    }
+
+    return (
+      <DetachedPanel
+        id="diff"
+        title="Diff View"
+        isDetached={this.state.isDiffDetached}
+        onReattach={this.onReattachDiff}
+        initialPosition={this.state.diffPosition}
+        icon={octicons.diff}
+        placeholderDescription="Diff is popped out in a separate floating window."
+        className="repository-content-panel"
+      >
+        {content}
+      </DetachedPanel>
+    )
   }
 
   public render() {

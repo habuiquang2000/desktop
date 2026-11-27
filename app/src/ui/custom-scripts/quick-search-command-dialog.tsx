@@ -30,6 +30,7 @@ export class QuickSearchCommandDialog extends React.Component<
 > {
   private inputRef = React.createRef<HTMLInputElement>()
   private listContainerRef = React.createRef<HTMLDivElement>()
+  private isComponentMounted = false
 
   public constructor(props: IQuickSearchCommandDialogProps) {
     super(props)
@@ -43,10 +44,15 @@ export class QuickSearchCommandDialog extends React.Component<
   }
 
   public async componentDidMount() {
+    this.isComponentMounted = true
     const { repository } = this.props
     const custom = getCustomScripts(repository)
     const detected = await discoverProjectScripts(repository.path)
     const hotScriptId = getHotScriptId(repository)
+
+    if (!this.isComponentMounted) {
+      return
+    }
 
     // Merge custom scripts and detected scripts without duplicates
     const seenIds = new Set<string>()
@@ -65,6 +71,10 @@ export class QuickSearchCommandDialog extends React.Component<
     })
 
     this.inputRef.current?.focus()
+  }
+
+  public componentWillUnmount() {
+    this.isComponentMounted = false
   }
 
   private onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,7 +170,7 @@ export class QuickSearchCommandDialog extends React.Component<
     const selectedEl = this.listContainerRef.current.querySelector(
       '.quick-search-item.is-selected'
     )
-    if (selectedEl) {
+    if (selectedEl && typeof selectedEl.scrollIntoView === 'function') {
       selectedEl.scrollIntoView({ block: 'nearest' })
     }
   }

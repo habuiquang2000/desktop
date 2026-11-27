@@ -61,7 +61,7 @@ interface IChangesProps {
   readonly onDiffOptionsOpened: () => void
 
   /** Called when the user clicks or drags to pop out the diff */
-  readonly onDetachDiff?: () => void
+  readonly onDetachDiff?: (screenX?: number, screenY?: number) => void
 }
 
 interface IChangesState {
