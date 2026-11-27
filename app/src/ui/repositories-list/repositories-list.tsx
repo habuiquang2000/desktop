@@ -1,4 +1,5 @@
 import * as React from 'react'
+import classNames from 'classnames'
 
 import { commitGrammar, RepositoryListItem } from './repository-list-item'
 import {
@@ -85,6 +86,12 @@ interface IRepositoriesListProps {
 
   /** Called when the repository's settings should be shown. */
   readonly onShowRepositorySettings: (repository: Repository) => void
+
+  /** Whether the repository list is currently docked as a sidebar */
+  readonly isDocked?: boolean
+
+  /** Called when the user clicks the dock/undock button */
+  readonly onToggleDock?: () => void
 
   readonly dispatcher: Dispatcher
 }
@@ -391,16 +398,33 @@ export class RepositoriesList extends React.Component<
   }
 
   private renderPostFilter = () => {
+    const isDocked = this.props.isDocked ?? false
+    const dockTooltip = isDocked
+      ? 'Undock repository list'
+      : 'Dock repository list to sidebar'
+
     return (
-      <Button
-        className="new-repository-button"
-        onClick={this.onNewRepositoryButtonClick}
-        ariaExpanded={this.state.newRepositoryMenuExpanded}
-        onKeyDown={this.onNewRepositoryButtonKeyDown}
-      >
-        Add
-        <Octicon symbol={octicons.triangleDown} />
-      </Button>
+      <div className="repository-list-post-filter-actions">
+        <Button
+          className="new-repository-button"
+          onClick={this.onNewRepositoryButtonClick}
+          ariaExpanded={this.state.newRepositoryMenuExpanded}
+          onKeyDown={this.onNewRepositoryButtonKeyDown}
+        >
+          Add
+          <Octicon symbol={octicons.triangleDown} />
+        </Button>
+        {this.props.onToggleDock && (
+          <Button
+            className={classNames('dock-toggle-button', { docked: isDocked })}
+            onClick={this.props.onToggleDock}
+            tooltip={dockTooltip}
+            ariaLabel={dockTooltip}
+          >
+            <Octicon symbol={isDocked ? octicons.pinSlash : octicons.pin} />
+          </Button>
+        )}
+      </div>
     )
   }
 

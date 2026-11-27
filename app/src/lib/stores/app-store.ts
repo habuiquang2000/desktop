@@ -282,6 +282,7 @@ import {
 import { inferLastPushForRepository } from '../infer-last-push-for-repository'
 import { updateMenuState } from '../menu-update'
 import { merge } from '../merge'
+import { APIError } from '../http'
 import {
   chooseAccountForRemoteRepository,
   IMatchedGitHubRepository,
@@ -503,6 +504,10 @@ const RecentRepositoriesLength = 3
 const defaultSidebarWidth: number = 250
 const sidebarWidthConfigKey: string = 'sidebar-width'
 
+const defaultDockedRepositoryListWidth: number = 280
+const dockedRepositoryListWidthConfigKey: string = 'docked-repository-list-width'
+const isRepositoryListDockedConfigKey: string = 'is-repository-list-docked'
+
 const defaultCommitSummaryWidth: number = 250
 const commitSummaryWidthConfigKey: string = 'commit-summary-width'
 
@@ -679,6 +684,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
   private appIsFocused: boolean = false
 
   private sidebarWidth = constrain(defaultSidebarWidth)
+  private isRepositoryListDocked: boolean = false
+  private dockedRepositoryListWidth = constrain(defaultDockedRepositoryListWidth)
   private commitSummaryWidth = constrain(defaultCommitSummaryWidth)
   private stashedFilesWidth = constrain(defaultStashedFilesWidth)
   private pullRequestFileListWidth = constrain(defaultPullRequestFileListWidth)
@@ -1407,6 +1414,8 @@ export class AppStore extends TypedBaseStore<IAppState> {
       focusCommitMessage: this.focusCommitMessage,
       emoji: this.emoji,
       sidebarWidth: this.sidebarWidth,
+      isRepositoryListDocked: this.isRepositoryListDocked,
+      dockedRepositoryListWidth: this.dockedRepositoryListWidth,
       branchDropdownWidth: this.branchDropdownWidth,
       worktreeDropdownWidth: this.worktreeDropdownWidth,
       pushPullButtonWidth: this.pushPullButtonWidth,
@@ -2690,6 +2699,16 @@ export class AppStore extends TypedBaseStore<IAppState> {
     this.sidebarWidth = constrain(
       getNumber(sidebarWidthConfigKey, defaultSidebarWidth)
     )
+    this.isRepositoryListDocked = getBoolean(
+      isRepositoryListDockedConfigKey,
+      false
+    )
+    this.dockedRepositoryListWidth = constrain(
+      getNumber(
+        dockedRepositoryListWidthConfigKey,
+        defaultDockedRepositoryListWidth
+      )
+    )
     this.commitSummaryWidth = constrain(
       getNumber(commitSummaryWidthConfigKey, defaultCommitSummaryWidth)
     )
@@ -2980,6 +2999,11 @@ export class AppStore extends TypedBaseStore<IAppState> {
     const maxSidebarWidth =
       available - Math.max(toolbarButtonsMinWidth, tutorialMinWidth)
     this.sidebarWidth = constrain(this.sidebarWidth, 220, maxSidebarWidth)
+    this.dockedRepositoryListWidth = constrain(
+      this.dockedRepositoryListWidth,
+      200,
+      Math.max(250, available - 300)
+    )
 
     // Now calculate the width we have left to distribute for the other panes
     available -= clamp(this.sidebarWidth)
@@ -7135,6 +7159,38 @@ export class AppStore extends TypedBaseStore<IAppState> {
     return Promise.resolve()
   }
 
+  public _setRepositoryListDocked(docked: boolean): Promise<void> {
+    this.isRepositoryListDocked = docked
+    setBoolean(isRepositoryListDockedConfigKey, docked)
+    this.emitUpdate()
+
+    return Promise.resolve()
+  }
+
+  public _setDockedRepositoryListWidth(width: number): Promise<void> {
+    this.dockedRepositoryListWidth = {
+      ...this.dockedRepositoryListWidth,
+      value: width,
+    }
+    setNumber(dockedRepositoryListWidthConfigKey, width)
+    this.updateResizableConstraints()
+    this.emitUpdate()
+
+    return Promise.resolve()
+  }
+
+  public _resetDockedRepositoryListWidth(): Promise<void> {
+    this.dockedRepositoryListWidth = {
+      ...this.dockedRepositoryListWidth,
+      value: defaultDockedRepositoryListWidth,
+    }
+    localStorage.removeItem(dockedRepositoryListWidthConfigKey)
+    this.updateResizableConstraints()
+    this.emitUpdate()
+
+    return Promise.resolve()
+  }
+
   public _setBranchDropdownWidth(width: number): Promise<void> {
     this.branchDropdownWidth = { ...this.branchDropdownWidth, value: width }
     setNumber(branchDropdownWidthConfigKey, width)
@@ -9025,9 +9081,21 @@ export class AppStore extends TypedBaseStore<IAppState> {
         repository.path,
         'mutation',
         async () => {
-          const gitStore = this.gitStoreCache.get(repository)
-          await gitStore.switchRemote(currentPrimaryName, targetRemoteName)
-          await this.repositoryWithRefreshedGitHubRepository(repository)
+          this.repositoryStateCache.update(repository, () => ({
+            isSwitchingRemote: true,
+          }))
+          this.emitUpdate()
+
+          try {
+            const gitStore = this.gitStoreCache.get(repository)
+            await gitStore.switchRemote(currentPrimaryName, targetRemoteName)
+            await this.repositoryWithRefreshedGitHubRepository(repository)
+          } finally {
+            this.repositoryStateCache.update(repository, () => ({
+              isSwitchingRemote: false,
+            }))
+            this.emitUpdate()
+          }
         }
       )
     })
@@ -9735,6 +9803,171 @@ export class AppStore extends TypedBaseStore<IAppState> {
         e
       )
       throw e
+    } finally {
+      this.updatePushPullFetchProgress(repository, null)
+    }
+  }
+
+  /**
+   * Sync a fork branch with its upstream repository.
+   * If a GitHub repository and account are available, calls the GitHub merge-upstream API
+   * (matching Option 2 from GitHub Web UI).
+   * Otherwise falls back to git fetch & merge & push.
+   */
+  public async _syncForkFromUpstream(
+    repository: Repository,
+    branchName?: string
+  ): Promise<boolean> {
+    const gitStore = this.gitStoreCache.get(repository)
+    const remotes = await getRemotes(repository)
+    const upstreamRemote = remotes.find(r => r.name === 'upstream')
+    const originRemote = remotes.find(r => r.name === 'origin')
+
+    let targetBranch: string = branchName ?? ''
+    if (!targetBranch) {
+      const tip = gitStore.tip
+      if (tip.kind === TipState.Valid) {
+        targetBranch = tip.branch.name
+      } else if (gitStore.defaultBranch !== null) {
+        targetBranch = gitStore.defaultBranch.name
+      } else {
+        targetBranch = 'main'
+      }
+    }
+
+    const title = `Syncing ${targetBranch} from upstream`
+    this.updatePushPullFetchProgress(repository, {
+      kind: 'fetch',
+      title,
+      value: 0,
+      remote: 'upstream',
+    })
+
+    const ghRepo = repository.gitHubRepository
+    const account = getAccountForRepository(this.accounts, repository)
+
+    // Attempt 1: GitHub API (Option 2 exact implementation)
+    if (ghRepo !== null && account !== null) {
+      try {
+        const api = API.fromAccount(account)
+        const result = await api.syncForkBranch(
+          ghRepo.owner.login,
+          ghRepo.name,
+          targetBranch
+        )
+
+        // After successful GitHub sync, fetch origin to bring commits to Desktop
+        if (originRemote !== undefined) {
+          try {
+            await this._fetch(repository, FetchType.UserInitiatedTask)
+            const tip = gitStore.tip
+            if (
+              tip.kind === TipState.Valid &&
+              tip.branch.name === targetBranch
+            ) {
+              await this._pull(repository)
+            }
+          } catch (fetchErr) {
+            log.warn(
+              'Failed to fetch/pull origin after GitHub sync-fork',
+              fetchErr
+            )
+          }
+        }
+
+        this._setBanner({
+          type: BannerType.SuccessfulForkUpdate,
+          branch: targetBranch,
+          mergeType: result.merge_type,
+          message: result.message,
+        })
+        return true
+      } catch (apiErr) {
+        log.warn(
+          `GitHub API sync-fork failed, falling back to local git: ${apiErr}`
+        )
+        if (apiErr instanceof APIError && apiErr.response.status === 409) {
+          this._setBanner({
+            type: BannerType.ForkUpdateFailed,
+            branch: targetBranch,
+            message: `Merge conflict between upstream and origin for '${targetBranch}'. Please resolve conflicts.`,
+            url: ghRepo.htmlURL ?? undefined,
+          })
+          return false
+        }
+      }
+    }
+
+    // Attempt 2: Local Git fallback
+    if (upstreamRemote === undefined) {
+      this._setBanner({
+        type: BannerType.ForkUpdateFailed,
+        branch: targetBranch,
+        message:
+          'No upstream remote found. Add an upstream remote to sync with the parent repository.',
+        url: ghRepo?.htmlURL ?? undefined,
+      })
+      return false
+    }
+
+    try {
+      // 1. Fetch upstream
+      await this._fetchRemote(
+        repository,
+        upstreamRemote,
+        FetchType.UserInitiatedTask
+      )
+
+      // 2. Check if local current branch is targetBranch
+      const tip = gitStore.tip
+      const isCurrentBranch =
+        tip.kind === TipState.Valid && tip.branch.name === targetBranch
+
+      if (isCurrentBranch) {
+        const upstreamRef = `upstream/${targetBranch}`
+        await git(
+          ['merge', upstreamRef, '--ff-only'],
+          repository.path,
+          'syncForkMerge'
+        )
+
+        // Push to origin
+        if (originRemote !== undefined) {
+          await this._push(repository)
+        }
+      } else {
+        // Push upstream branch directly to origin branch
+        if (originRemote !== undefined) {
+          await git(
+            [
+              'push',
+              'origin',
+              `refs/remotes/upstream/${targetBranch}:refs/heads/${targetBranch}`,
+            ],
+            repository.path,
+            'pushUpstreamToOrigin'
+          )
+        }
+      }
+
+      await this._fetch(repository, FetchType.UserInitiatedTask)
+
+      this._setBanner({
+        type: BannerType.SuccessfulForkUpdate,
+        branch: targetBranch,
+        mergeType: 'fast-forward',
+        message: `Successfully synced ${targetBranch} from upstream to origin.`,
+      })
+      return true
+    } catch (gitErr) {
+      log.error('Local git sync-fork failed', gitErr)
+      this._setBanner({
+        type: BannerType.ForkUpdateFailed,
+        branch: targetBranch,
+        message: `Failed to sync ${targetBranch} from upstream: ${gitErr instanceof Error ? gitErr.message : String(gitErr)}`,
+        url: ghRepo?.htmlURL ?? undefined,
+      })
+      return false
     } finally {
       this.updatePushPullFetchProgress(repository, null)
     }

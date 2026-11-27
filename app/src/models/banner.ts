@@ -18,6 +18,8 @@ export enum BannerType {
   ConflictsFound = 'ConflictsFound',
   OSVersionNoLongerSupported = 'OSVersionNoLongerSupported',
   SuccessfulMirror = 'SuccessfulMirror',
+  SuccessfulForkUpdate = 'SuccessfulForkUpdate',
+  ForkUpdateFailed = 'ForkUpdateFailed',
 }
 
 export type Banner =
@@ -126,4 +128,16 @@ export type Banner =
   | {
       readonly type: BannerType.SuccessfulMirror
       readonly destinationUrl: string
+    }
+  | {
+      readonly type: BannerType.SuccessfulForkUpdate
+      readonly branch: string
+      readonly mergeType?: string
+      readonly message?: string
+    }
+  | {
+      readonly type: BannerType.ForkUpdateFailed
+      readonly branch: string
+      readonly message: string
+      readonly url?: string
     }

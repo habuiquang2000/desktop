@@ -218,6 +218,15 @@ export interface IAPIRepositoryPermissions {
 }
 
 /**
+ * Result of syncing a fork branch with its upstream repository.
+ */
+export interface IAPIMergeUpstreamResponse {
+  readonly message: string
+  readonly merge_type: 'fast-forward' | 'none' | 'merge'
+  readonly base_branch: string
+}
+
+/**
  * Information about a commit as returned by the GitHub API.
  */
 export interface IAPICommit {
@@ -1186,6 +1195,33 @@ export class API {
     } catch (e) {
       log.error(
         `forkRepository: failed to fork ${owner}/${name} at endpoint: ${this.endpoint}`,
+        e
+      )
+      throw e
+    }
+  }
+
+  /**
+   * Sync a fork branch with the upstream repository (GitHub merge-upstream API).
+   *
+   * @param owner The owner of the fork repository.
+   * @param name The name of the fork repository.
+   * @param branch The name of the branch to update from upstream.
+   */
+  public async syncForkBranch(
+    owner: string,
+    name: string,
+    branch: string
+  ): Promise<IAPIMergeUpstreamResponse> {
+    try {
+      const apiPath = `repos/${owner}/${name}/merge-upstream`
+      const response = await this.ghRequest('POST', apiPath, {
+        body: { branch },
+      })
+      return await parsedResponse<IAPIMergeUpstreamResponse>(response)
+    } catch (e) {
+      log.error(
+        `syncForkBranch: failed to sync ${owner}/${name} (${branch}) at endpoint: ${this.endpoint}`,
         e
       )
       throw e

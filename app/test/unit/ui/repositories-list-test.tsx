@@ -149,3 +149,52 @@ describe('RepositoriesList account groups', () => {
     })
   })
 })
+
+describe('RepositoriesList docking', () => {
+  let originalResizeObserver: typeof ResizeObserver
+
+  beforeEach(() => {
+    originalResizeObserver = global.ResizeObserver
+    global.ResizeObserver = ListResizeObserver
+  })
+
+  afterEach(() => {
+    global.ResizeObserver = originalResizeObserver
+  })
+
+  it('renders dock button and fires onToggleDock when clicked', async () => {
+    let toggleClicked = false
+    const initial = props([], [])
+    const view = render(
+      <RepositoriesList
+        {...initial}
+        isDocked={false}
+        onToggleDock={() => {
+          toggleClicked = true
+        }}
+      />
+    )
+
+    const dockButton = view.container.querySelector('.dock-toggle-button')
+    assert.ok(dockButton !== null)
+    assert.equal(
+      dockButton.getAttribute('aria-label'),
+      'Dock repository list to sidebar'
+    )
+
+    dockButton.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    assert.equal(toggleClicked, true)
+
+    view.rerender(
+      <RepositoriesList {...initial} isDocked={true} onToggleDock={() => {}} />
+    )
+
+    const undockButton = view.container.querySelector('.dock-toggle-button')
+    assert.ok(undockButton !== null)
+    assert.equal(
+      undockButton.getAttribute('aria-label'),
+      'Undock repository list'
+    )
+    assert.ok(undockButton.classList.contains('docked'))
+  })
+})

@@ -44,6 +44,7 @@ import { CloningRepository } from '../models/cloning-repository'
 import { TitleBar, ZoomInfo, FullScreenInfo } from './window'
 
 import { RepositoriesList } from './repositories-list'
+import { Resizable } from './resizable'
 import { RepositoryView } from './repository'
 import { RenameBranch } from './rename-branch'
 import { DeleteBranch, DeleteRemoteBranch } from './delete-branch'
@@ -180,7 +181,7 @@ import { DiscardChangesRetryDialog } from './discard-changes/discard-changes-ret
 import { PullRequestReview } from './notifications/pull-request-review'
 import { getRepositoryType } from '../lib/git'
 import { SSHUserPassword } from './ssh/ssh-user-password'
-import { showContextualMenu } from '../lib/menu-item'
+import { showContextualMenu, IMenuItem } from '../lib/menu-item'
 import { UnreachableCommitsDialog } from './history/unreachable-commits-dialog'
 import { OpenPullRequestDialog } from './open-pull-request/open-pull-request-dialog'
 import { sendNonFatalException } from '../lib/helpers/non-fatal-exception'
@@ -949,6 +950,10 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   private chooseRepository() {
+    if (this.state.isRepositoryListDocked) {
+      return
+    }
+
     if (
       this.state.currentFoldout &&
       this.state.currentFoldout.type === FoldoutType.Repository
@@ -3440,6 +3445,44 @@ export class App extends React.Component<IAppProps, IAppState> {
     })
   }
 
+  private onToggleDockRepositoryList = () => {
+    const isDocked = !this.state.isRepositoryListDocked
+    this.props.dispatcher.setRepositoryListDocked(isDocked)
+    if (isDocked) {
+      this.props.dispatcher.closeFoldout(FoldoutType.Repository)
+    }
+  }
+
+  private handleDockedRepositoryListResize = (width: number) => {
+    this.props.dispatcher.setDockedRepositoryListWidth(width)
+  }
+
+  private handleDockedRepositoryListWidthReset = () => {
+    this.props.dispatcher.resetDockedRepositoryListWidth()
+  }
+
+  private renderDockedRepositoryList(): JSX.Element | null {
+    if (!this.state.isRepositoryListDocked) {
+      return null
+    }
+
+    const width = clamp(this.state.dockedRepositoryListWidth)
+
+    return (
+      <Resizable
+        id="docked-repository-list-sidebar"
+        width={width}
+        maximumWidth={this.state.dockedRepositoryListWidth.max}
+        minimumWidth={this.state.dockedRepositoryListWidth.min}
+        onReset={this.handleDockedRepositoryListWidthReset}
+        onResize={this.handleDockedRepositoryListResize}
+        description="Docked repository list"
+      >
+        {this.renderRepositoryList(true)}
+      </Resizable>
+    )
+  }
+
   private renderApp() {
     return (
       <div
@@ -3448,14 +3491,17 @@ export class App extends React.Component<IAppProps, IAppState> {
       >
         {this.renderToolbar()}
         {this.renderBanner()}
-        {this.renderRepository()}
+        <div id="desktop-app-body">
+          {this.renderDockedRepositoryList()}
+          {this.renderRepository()}
+        </div>
         {this.renderPopups()}
         {this.renderDragElement()}
       </div>
     )
   }
 
-  private renderRepositoryList = (): JSX.Element => {
+  private renderRepositoryList = (isDocked: boolean = false): JSX.Element => {
     const selectedRepository = this.state.selectedState
       ? this.state.selectedState.repository
       : null
@@ -3486,8 +3532,14 @@ export class App extends React.Component<IAppProps, IAppState> {
         onChangeRepositoryAccount={this.changeRepositoryAccount}
         onShowRepositorySettings={this.showRepositorySettingsFor}
         dispatcher={this.props.dispatcher}
+        isDocked={isDocked}
+        onToggleDock={this.onToggleDockRepositoryList}
       />
     )
+  }
+
+  private renderRepositoryListDropdown = (): JSX.Element => {
+    return this.renderRepositoryList(false)
   }
 
   private changeRepositoryAccount = async (
@@ -3607,6 +3659,13 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   private onRepositoryDropdownStateChanged = (newState: DropdownState) => {
+    if (this.state.isRepositoryListDocked) {
+      if (newState === 'open') {
+        this.onToggleDockRepositoryList()
+      }
+      return
+    }
+
     if (newState === 'open') {
       this.props.dispatcher.showFoldout({ type: FoldoutType.Repository })
     } else {
@@ -3650,12 +3709,15 @@ export class App extends React.Component<IAppProps, IAppState> {
     }
 
     const isOpen =
+      !this.state.isRepositoryListDocked &&
       this.state.currentFoldout &&
       this.state.currentFoldout.type === FoldoutType.Repository
 
     const currentState: DropdownState = isOpen ? 'open' : 'closed'
 
-    const tooltip = repository && !isOpen ? repository.path : undefined
+    const tooltip = repository
+      ? `${repository.path}${this.state.isRepositoryListDocked ? ' (Docked)' : ''}`
+      : undefined
 
     const foldoutWidth = clamp(this.state.sidebarWidth)
 
@@ -3682,7 +3744,7 @@ export class App extends React.Component<IAppProps, IAppState> {
         foldoutStyle={foldoutStyle}
         onContextMenu={this.onRepositoryToolbarButtonContextMenu}
         onDropdownStateChanged={this.onRepositoryDropdownStateChanged}
-        dropdownContentRenderer={this.renderRepositoryList}
+        dropdownContentRenderer={this.renderRepositoryListDropdown}
         dropdownState={currentState}
         enableFocusTrap={enableFocusTrap}
       />
@@ -3740,7 +3802,14 @@ export class App extends React.Component<IAppProps, IAppState> {
         : this.state.selectedShell,
     })
 
-    showContextualMenu(items)
+    const dockItem: IMenuItem = {
+      label: this.state.isRepositoryListDocked
+        ? 'Undock Repository List'
+        : 'Dock Repository List to Sidebar',
+      action: this.onToggleDockRepositoryList,
+    }
+
+    showContextualMenu([...items, { type: 'separator' }, dockItem])
   }
 
   private renderPushPullToolbarButton() {
@@ -3909,6 +3978,15 @@ export class App extends React.Component<IAppProps, IAppState> {
   }
 
   private onRemoteDropdownStateChanged = (newState: DropdownState) => {
+    const selection = this.state.selectedState
+    if (selection == null || selection.type !== SelectionType.Repository) {
+      return
+    }
+
+    if (newState === 'open' && selection.state.isSwitchingRemote) {
+      return
+    }
+
     if (newState === 'open') {
       this.props.dispatcher.showFoldout({ type: FoldoutType.Remote })
     } else {
@@ -4039,10 +4117,13 @@ export class App extends React.Component<IAppProps, IAppState> {
         isOpen={isOpen}
         onDropDownStateChanged={this.onRemoteDropdownStateChanged}
         enableFocusTrap={enableFocusTrap}
+        isSwitchingRemote={state.isSwitchingRemote}
         disabled={
+          state.isSwitchingRemote ||
           isAssistedCommitRepositoryLocked(
             selection.state.changesState.assistedCommit
-          ) || isRepositoryAffectedByAssistedCommit(repository.path)
+          ) ||
+          isRepositoryAffectedByAssistedCommit(repository.path)
         }
       />
     )
@@ -4291,7 +4372,9 @@ export class App extends React.Component<IAppProps, IAppState> {
 
   private onSelectionChanged = (repository: Repository | CloningRepository) => {
     this.props.dispatcher.selectRepository(repository)
-    this.props.dispatcher.closeFoldout(FoldoutType.Repository)
+    if (!this.state.isRepositoryListDocked) {
+      this.props.dispatcher.closeFoldout(FoldoutType.Repository)
+    }
   }
 
   private onViewCommitOnGitHub = async (SHA: string, filePath?: string) => {

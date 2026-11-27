@@ -483,6 +483,7 @@ function getInitialRepositoryState(commitMode: CommitMode): IRepositoryState {
     remote: null,
     remotes: [],
     isPushPullFetchInProgress: false,
+    isSwitchingRemote: false,
     isCommitting: false,
     hookProgress: null,
     subscribeToCommitOutput: null,

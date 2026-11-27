@@ -133,4 +133,109 @@ describe('RemoteDropdown toolbar component', () => {
     assert.equal(shownPopup.type, PopupType.RepositorySettings)
     assert.equal(shownPopup.initialSelectedTab, RepositorySettingsTab.Remote)
   })
+
+  it('renders loading state when isSwitchingRemote is true', () => {
+    const dispatcher = {} as Dispatcher
+
+    render(
+      <RemoteDropdown
+        dispatcher={dispatcher}
+        repository={repository}
+        remote={origin}
+        remotes={[origin, upstream]}
+        isOpen={false}
+        onDropDownStateChanged={() => {}}
+        enableFocusTrap={false}
+        isSwitchingRemote={true}
+      />
+    )
+
+    const descElement = screen.getByText(/Switching remote/i)
+    assert.ok(descElement)
+
+    const button = screen.getByRole('button')
+    assert.ok(button)
+    assert.equal(button.getAttribute('aria-disabled'), 'true')
+  })
+
+  it('does not allow opening dropdown when switching remote', () => {
+    let opened = false
+    const dispatcher = {} as Dispatcher
+
+    render(
+      <RemoteDropdown
+        dispatcher={dispatcher}
+        repository={repository}
+        remote={origin}
+        remotes={[origin, upstream]}
+        isOpen={false}
+        onDropDownStateChanged={state => {
+          if (state === 'open') {
+            opened = true
+          }
+        }}
+        enableFocusTrap={false}
+        isSwitchingRemote={true}
+      />
+    )
+
+    const button = screen.getByRole('button')
+    fireEvent.click(button)
+
+    assert.equal(opened, false)
+  })
+
+  it('renders Sync fork from upstream when upstream remote exists and triggers sync', async () => {
+    let syncedRepo: Repository | null = null
+    let closedFoldout = false
+
+    const dispatcher = {
+      syncForkFromUpstream: async (repo: Repository) => {
+        syncedRepo = repo
+        return true
+      },
+      closeFoldout: () => {
+        closedFoldout = true
+      },
+    } as unknown as Dispatcher
+
+    render(
+      <RemoteDropdown
+        dispatcher={dispatcher}
+        repository={repository}
+        remote={origin}
+        remotes={[origin, upstream]}
+        isOpen={true}
+        onDropDownStateChanged={() => {}}
+        enableFocusTrap={false}
+      />
+    )
+
+    const syncButton = screen.getByText(/Sync fork from upstream/i)
+    assert.ok(syncButton)
+
+    fireEvent.click(syncButton)
+
+    assert.equal(syncedRepo, repository)
+    assert.equal(closedFoldout, true)
+  })
+
+  it('does not render Sync fork button when no upstream exists', () => {
+    const dispatcher = {} as Dispatcher
+
+    render(
+      <RemoteDropdown
+        dispatcher={dispatcher}
+        repository={repository}
+        remote={origin}
+        remotes={[origin]}
+        isOpen={true}
+        onDropDownStateChanged={() => {}}
+        enableFocusTrap={false}
+      />
+    )
+
+    const syncButton = screen.queryByText(/Sync fork from upstream/i)
+    assert.equal(syncButton, null)
+  })
 })

@@ -1064,6 +1064,27 @@ export class Dispatcher {
   }
 
   /**
+   * Set whether the repositories list is docked to the sidebar.
+   */
+  public setRepositoryListDocked(docked: boolean): Promise<void> {
+    return this.appStore._setRepositoryListDocked(docked)
+  }
+
+  /**
+   * Set the width of the docked repositories list sidebar.
+   */
+  public setDockedRepositoryListWidth(width: number): Promise<void> {
+    return this.appStore._setDockedRepositoryListWidth(width)
+  }
+
+  /**
+   * Reset the width of the docked repositories list sidebar to default.
+   */
+  public resetDockedRepositoryListWidth(): Promise<void> {
+    return this.appStore._resetDockedRepositoryListWidth()
+  }
+
+  /**
    * Set the width of the Branch toolbar button to the given value.
    * This affects the toolbar button and its dropdown element.
    *
@@ -2009,6 +2030,17 @@ export class Dispatcher {
       type: PopupType.MirrorRepository,
       repository,
     })
+  }
+
+  /**
+   * Sync a fork repository's branch from its upstream repository.
+   * Calls GitHub's merge-upstream endpoint if available, and falls back to git.
+   */
+  public async syncForkFromUpstream(
+    repository: Repository,
+    branchName?: string
+  ): Promise<boolean> {
+    return this.appStore._syncForkFromUpstream(repository, branchName)
   }
 
   public async showUnknownAuthorsCommitWarning(

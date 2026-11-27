@@ -200,6 +200,12 @@ export interface IAppState {
    */
   readonly sidebarWidth: IConstrainedValue
 
+  /** Whether the repositories list is docked to the sidebar */
+  readonly isRepositoryListDocked: boolean
+
+  /** The width of the docked repositories list sidebar */
+  readonly dockedRepositoryListWidth: IConstrainedValue
+
   /** The width of the commit summary column in the history view */
   readonly commitSummaryWidth: IConstrainedValue
 
@@ -611,6 +617,9 @@ export interface IRepositoryState {
 
   /** Is a push/pull/fetch in progress? */
   readonly isPushPullFetchInProgress: boolean
+
+  /** Is a remote switch operation in progress? */
+  readonly isSwitchingRemote: boolean
 
   /** Is a commit in progress? */
   readonly isCommitting: boolean

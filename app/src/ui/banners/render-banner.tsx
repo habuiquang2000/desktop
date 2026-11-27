@@ -17,8 +17,40 @@ import { CherryPickUndone } from './cherry-pick-undone'
 import { OpenThankYouCard } from './open-thank-you-card'
 import { SuccessfulSquash } from './successful-squash'
 import { SuccessBanner } from './success-banner'
+import { Banner as BannerUI } from './banner'
+import { LinkButton } from '../lib/link-button'
 import { ConflictsFoundBanner } from './conflicts-found-banner'
 import { OSVersionNoLongerSupportedBanner } from './os-version-no-longer-supported-banner'
+
+interface IForkUpdateFailedBannerProps {
+  readonly message: string
+  readonly url?: string
+  readonly dispatcher: Dispatcher
+  readonly onDismissed: () => void
+}
+
+class ForkUpdateFailedBanner extends React.Component<IForkUpdateFailedBannerProps> {
+  private onOpenUrl = () => {
+    if (this.props.url) {
+      this.props.dispatcher.openInBrowser(this.props.url)
+    }
+  }
+
+  public render() {
+    const { message, url, onDismissed } = this.props
+    return (
+      <BannerUI key="fork-update-failed" onDismissed={onDismissed}>
+        {message}
+        {url && (
+          <>
+            {' '}
+            <LinkButton onClick={this.onOpenUrl}>Open on GitHub</LinkButton>
+          </>
+        )}
+      </BannerUI>
+    )
+  }
+}
 
 export function renderBanner(
   banner: Banner,
@@ -181,6 +213,30 @@ export function renderBanner(
           Successfully mirrored repository to{' '}
           <strong>{banner.destinationUrl}</strong>.
         </SuccessBanner>
+      )
+    case BannerType.SuccessfulForkUpdate:
+      return (
+        <SuccessBanner
+          key="successful-fork-update"
+          timeout={5000}
+          onDismissed={onDismissed}
+        >
+          Successfully synced <strong>{banner.branch}</strong> from upstream
+          {banner.mergeType && banner.mergeType !== 'none'
+            ? ` (${banner.mergeType})`
+            : ''}
+          .
+        </SuccessBanner>
+      )
+    case BannerType.ForkUpdateFailed:
+      return (
+        <ForkUpdateFailedBanner
+          key="fork-update-failed"
+          message={banner.message}
+          url={banner.url}
+          dispatcher={dispatcher}
+          onDismissed={onDismissed}
+        />
       )
     default:
       return assertNever(banner, `Unknown popup type: ${banner}`)

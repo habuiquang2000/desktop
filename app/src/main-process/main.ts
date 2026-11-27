@@ -59,7 +59,27 @@ import { CLIAction } from '../lib/cli-action'
 app.setAppLogsPath()
 enableSourceMaps()
 
-let mainWindow: AppWindow | null = null
+const allWindows: AppWindow[] = []
+
+function getActiveWindow(): AppWindow | null {
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused) {
+    const found = allWindows.find(w => w.browserWindow === focused)
+    if (found) {
+      return found
+    }
+  }
+  return allWindows[allWindows.length - 1] ?? null
+}
+
+function getAppWindowFromEvent(
+  event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent
+): AppWindow | null {
+  return (
+    allWindows.find(w => w.webContents.id === event.sender.id) ??
+    getActiveWindow()
+  )
+}
 
 const launchTime = now()
 
@@ -79,11 +99,13 @@ function handleUncaughtException(error: Error) {
   // exception on shutdown but that's less likely and since
   // this only affects the presentation of the crash dialog
   // it's a safe assumption to make.
-  const isLaunchError = mainWindow === null
+  const isLaunchError = allWindows.length === 0
 
-  if (mainWindow) {
-    mainWindow.destroy()
-    mainWindow = null
+  if (allWindows.length > 0) {
+    for (const window of allWindows) {
+      window.destroy()
+    }
+    allWindows.length = 0
   }
 
   showUncaughtException(isLaunchError, error)
@@ -180,20 +202,27 @@ if (!handlingSquirrelEvent) {
   isDuplicateInstance = !gotSingleInstanceLock
 
   app.on('second-instance', (event, args, workingDirectory) => {
-    // Someone tried to run a second instance, we should focus our window.
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore()
-      }
+    const parsedArgs = parseCommandLineArgs(args.slice(1))
+    const isAction =
+      parsedArgs['cli-open'] ||
+      parsedArgs['cli-clone'] ||
+      args.some(a => a.includes('://'))
 
-      if (!mainWindow.isVisible()) {
-        mainWindow.show()
+    if (isAction) {
+      const active = getActiveWindow()
+      if (active) {
+        if (active.isMinimized()) {
+          active.restore()
+        }
+        if (!active.isVisible()) {
+          active.show()
+        }
+        active.focus()
       }
-
-      mainWindow.focus()
+      handleCommandLineArguments(args)
+    } else {
+      createWindow()
     }
-
-    handleCommandLineArguments(args)
   })
 
   if (isDuplicateInstance) {
@@ -361,7 +390,7 @@ app.on('ready', () => {
   // Adds an authorization header for requests of avatars on GHES and private
   // repo assets
   const imageTokenResolver = createAuthenticatedImageTokenResolver(
-    () => mainWindow?.webContents
+    () => getActiveWindow()?.webContents
   )
   const updateAccounts = installAuthenticatedImageFilter(
     orderedWebRequest,
@@ -378,7 +407,7 @@ app.on('ready', () => {
   )
 
   ipcMain.on('update-accounts', (event, accounts) => {
-    if (event.sender !== mainWindow?.webContents) {
+    if (!allWindows.some(w => w.webContents.id === event.sender.id)) {
       return
     }
     imageTokenResolver.updateAccounts(accounts)
@@ -407,8 +436,8 @@ app.on('ready', () => {
       // https://github.com/electron/electron/issues/2717
       Menu.setApplicationMenu(newMenu)
 
-      if (mainWindow !== null) {
-        mainWindow.sendAppMenu()
+      for (const window of allWindows) {
+        window.sendAppMenu()
       }
 
       return
@@ -453,10 +482,12 @@ app.on('ready', () => {
       }
     }
 
-    if (menuHasChanged && mainWindow) {
+    if (menuHasChanged) {
       // https://github.com/electron/electron/issues/2717
       Menu.setApplicationMenu(newMenu)
-      mainWindow.sendAppMenu()
+      for (const window of allWindows) {
+        window.sendAppMenu()
+      }
     }
   })
 
@@ -507,9 +538,11 @@ app.on('ready', () => {
       }
     }
 
-    if (sendMenuChangedEvent && mainWindow) {
+    if (sendMenuChangedEvent) {
       Menu.setApplicationMenu(currentMenu)
-      mainWindow.sendAppMenu()
+      for (const window of allWindows) {
+        window.sendAppMenu()
+      }
     }
   })
 
@@ -528,7 +561,6 @@ app.on('ready', () => {
       const spellCheckMenuItems = addSpellCheckMenu
         ? await buildSpellCheckMenu(window)
         : undefined
-
       const menu = buildContextMenu(
         items,
         indices => resolve(indices),
@@ -544,42 +576,50 @@ app.on('ready', () => {
   )
 
   ipcMain.handle('check-for-updates', async (_, url) =>
-    mainWindow?.checkForUpdates(url)
+    getActiveWindow()?.checkForUpdates(url)
   )
 
   ipcMain.on('quit-and-install-updates', () =>
-    mainWindow?.quitAndInstallUpdate()
+    getActiveWindow()?.quitAndInstallUpdate()
   )
 
   ipcMain.on('quit-app', () => app.quit())
 
-  ipcMain.on('minimize-window', () => mainWindow?.minimizeWindow())
+  ipcMain.on('minimize-window', event =>
+    getAppWindowFromEvent(event)?.minimizeWindow()
+  )
 
-  ipcMain.on('maximize-window', () => mainWindow?.maximizeWindow())
+  ipcMain.on('maximize-window', event =>
+    getAppWindowFromEvent(event)?.maximizeWindow()
+  )
 
-  ipcMain.on('unmaximize-window', () => mainWindow?.unmaximizeWindow())
+  ipcMain.on('unmaximize-window', event =>
+    getAppWindowFromEvent(event)?.unmaximizeWindow()
+  )
 
-  ipcMain.on('close-window', () => mainWindow?.closeWindow())
+  ipcMain.on('close-window', event =>
+    getAppWindowFromEvent(event)?.closeWindow()
+  )
 
   ipcMain.handle(
     'is-window-maximized',
-    async () => mainWindow?.isMaximized() ?? false
+    async event => getAppWindowFromEvent(event)?.isMaximized() ?? false
   )
 
   ipcMain.handle('get-apple-action-on-double-click', async () =>
     systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string')
   )
 
-  ipcMain.handle('get-current-window-state', async () =>
-    mainWindow?.getCurrentWindowState()
+  ipcMain.handle('get-current-window-state', async event =>
+    getAppWindowFromEvent(event)?.getCurrentWindowState()
   )
 
-  ipcMain.handle('get-current-window-zoom-factor', async () =>
-    mainWindow?.getCurrentWindowZoomFactor()
+  ipcMain.handle('get-current-window-zoom-factor', async event =>
+    getAppWindowFromEvent(event)?.getCurrentWindowZoomFactor()
   )
 
-  ipcMain.on('set-window-zoom-factor', (_, zoomFactor: number) =>
-    mainWindow?.setWindowZoomFactor(zoomFactor)
+  ipcMain.on('set-window-zoom-factor', (event, zoomFactor: number) =>
+    getAppWindowFromEvent(event)?.setWindowZoomFactor(zoomFactor)
   )
 
   if (__WIN32__) {
@@ -591,7 +631,9 @@ app.on('ready', () => {
    * An event sent by the renderer asking for a copy of the current
    * application menu.
    */
-  ipcMain.on('get-app-menu', () => mainWindow?.sendAppMenu())
+  ipcMain.on('get-app-menu', event =>
+    getAppWindowFromEvent(event)?.sendAppMenu()
+  )
 
   ipcMain.on('show-certificate-trust-dialog', (_, certificate, message) => {
     // This API is only implemented for macOS and Windows right now.
@@ -694,12 +736,14 @@ app.on('ready', () => {
   )
 
   /** An event sent by the renderer asking to select all of the window's contents */
-  ipcMain.on('select-all-window-contents', () =>
-    mainWindow?.selectAllWindowContents()
+  ipcMain.on('select-all-window-contents', event =>
+    getAppWindowFromEvent(event)?.selectAllWindowContents()
   )
 
   /** An event sent by the renderer indicating a modal dialog is opened */
-  ipcMain.on('dialog-did-open', () => mainWindow?.dialogDidOpen())
+  ipcMain.on('dialog-did-open', event =>
+    getAppWindowFromEvent(event)?.dialogDidOpen()
+  )
 
   /**
    * An event sent by the renderer asking whether the Desktop is in the
@@ -727,7 +771,8 @@ app.on('ready', () => {
    */
   ipcMain.handle(
     'show-save-dialog',
-    async (_, options) => mainWindow?.showSaveDialog(options) ?? null
+    async (event, options) =>
+      getAppWindowFromEvent(event)?.showSaveDialog(options) ?? null
   )
 
   /**
@@ -735,7 +780,8 @@ app.on('ready', () => {
    */
   ipcMain.handle(
     'show-open-dialog',
-    async (_, options) => mainWindow?.showOpenDialog(options) ?? null
+    async (event, options) =>
+      getAppWindowFromEvent(event)?.showOpenDialog(options) ?? null
   )
 
   /**
@@ -743,12 +789,12 @@ app.on('ready', () => {
    */
   ipcMain.handle(
     'is-window-focused',
-    async () => mainWindow?.isFocused() ?? false
+    async event => getAppWindowFromEvent(event)?.isFocused() ?? false
   )
 
   /** An event sent by the renderer asking to focus the main window. */
-  ipcMain.on('focus-window', () => {
-    mainWindow?.focus()
+  ipcMain.on('focus-window', event => {
+    getAppWindowFromEvent(event)?.focus()
   })
 
   ipcMain.on('set-native-theme-source', (_, themeName) => {
@@ -777,9 +823,13 @@ app.on('ready', () => {
 })
 
 app.on('activate', () => {
-  onDidLoad(window => {
-    window.show()
-  })
+  if (allWindows.length === 0) {
+    createWindow()
+  } else {
+    onDidLoad(window => {
+      window.show()
+    })
+  }
 })
 
 app.on('web-contents-created', (event, contents) => {

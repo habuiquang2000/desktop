@@ -44,6 +44,10 @@ export class AppWindow {
   // See https://github.com/desktop/desktop/pull/11162
   private shouldMaximizeOnShow = false
 
+  private static quitting = false
+  private static quittingEvenIfUpdating = false
+  private static hasRegisteredQuitListeners = false
+
   public constructor() {
     const savedWindowState = windowStateKeeper({
       defaultWidth: this.minWidth,
@@ -51,9 +55,18 @@ export class AppWindow {
       maximize: false,
     })
 
+    let x = savedWindowState.x
+    let y = savedWindowState.y
+    const allExisting = BrowserWindow.getAllWindows()
+    if (allExisting.length > 0 && x !== undefined && y !== undefined) {
+      const offset = (allExisting.length * 30) % 240
+      x += offset
+      y += offset
+    }
+
     const windowOptions: Electron.BrowserWindowConstructorOptions = {
-      x: savedWindowState.x,
-      y: savedWindowState.y,
+      x,
+      y,
       width: savedWindowState.width,
       height: savedWindowState.height,
       minWidth: this.minWidth,
@@ -89,36 +102,38 @@ export class AppWindow {
     savedWindowState.manage(this.window)
     this.shouldMaximizeOnShow = savedWindowState.isMaximized
 
-    let quitting = false
-    let quittingEvenIfUpdating = false
-    app.on('before-quit', () => {
-      quitting = true
-    })
+    if (!AppWindow.hasRegisteredQuitListeners) {
+      AppWindow.hasRegisteredQuitListeners = true
 
-    ipcMain.on('will-quit', event => {
-      quitting = true
-      event.returnValue = true
-    })
+      app.on('before-quit', () => {
+        AppWindow.quitting = true
+      })
 
-    ipcMain.on('will-quit-even-if-updating', event => {
-      quitting = true
-      quittingEvenIfUpdating = true
-      event.returnValue = true
-    })
+      ipcMain.on('will-quit', event => {
+        AppWindow.quitting = true
+        event.returnValue = true
+      })
 
-    ipcMain.on('cancel-quitting', event => {
-      quitting = false
-      quittingEvenIfUpdating = false
-      event.returnValue = true
-    })
+      ipcMain.on('will-quit-even-if-updating', event => {
+        AppWindow.quitting = true
+        AppWindow.quittingEvenIfUpdating = true
+        event.returnValue = true
+      })
+
+      ipcMain.on('cancel-quitting', event => {
+        AppWindow.quitting = false
+        AppWindow.quittingEvenIfUpdating = false
+        event.returnValue = true
+      })
+    }
 
     this.window.on('close', e => {
       // On macOS, closing the window doesn't mean the app is quitting. If the
       // app is updating, we will prevent the window from closing only when the
       // app is also quitting.
       if (
-        (!__DARWIN__ || quitting) &&
-        !quittingEvenIfUpdating &&
+        (!__DARWIN__ || AppWindow.quitting) &&
+        !AppWindow.quittingEvenIfUpdating &&
         this.isDownloadingUpdate
       ) {
         e.preventDefault()
@@ -135,8 +150,12 @@ export class AppWindow {
 
       // on macOS, when the user closes the window we really just hide it. This
       // lets us activate quickly and keep all our interesting logic in the
-      // renderer.
-      if (__DARWIN__ && !quitting) {
+      // renderer. If there are other windows open, let this window close normally.
+      if (
+        __DARWIN__ &&
+        !AppWindow.quitting &&
+        BrowserWindow.getAllWindows().length <= 1
+      ) {
         e.preventDefault()
         // https://github.com/desktop/desktop/issues/12838
         if (this.window.isFullScreen()) {
@@ -147,15 +166,24 @@ export class AppWindow {
         }
         return
       }
-      nativeTheme.removeAllListeners()
-      autoUpdater.removeAllListeners()
-      terminateDesktopNotifications()
+
+      if (BrowserWindow.getAllWindows().length <= 1) {
+        terminateDesktopNotifications()
+      }
     })
   }
 
   /** The main renderer, used to authenticate and target IPC requests. */
   public get webContents(): Electron.WebContents {
     return this.window.webContents
+  }
+
+  public get browserWindow(): Electron.BrowserWindow {
+    return this.window
+  }
+
+  public get id(): number {
+    return this.window.id
   }
 
   public load() {
@@ -193,11 +221,18 @@ export class AppWindow {
       this.window.show()
     })
 
-    // TODO: This should be scoped by the window.
-    ipcMain.once('renderer-ready', (_, readyTime) => {
-      this._rendererReadyTime = readyTime
-      this.maybeEmitDidLoad()
-    })
+    // Scope renderer-ready to this window's webContents
+    const onRendererReady = (
+      event: Electron.IpcMainEvent,
+      readyTime: number
+    ) => {
+      if (event.sender.id === this.window.webContents.id) {
+        ipcMain.off('renderer-ready', onRendererReady)
+        this._rendererReadyTime = readyTime
+        this.maybeEmitDidLoad()
+      }
+    }
+    ipcMain.on('renderer-ready', onRendererReady)
 
     this.window.on('focus', () =>
       ipcWebContents.send(this.window.webContents, 'focus')
@@ -218,12 +253,27 @@ export class AppWindow {
         `#lc=${encodeURIComponent(localeCountryCode)}`
     )
 
-    nativeTheme.addListener('updated', () => {
-      ipcWebContents.send(this.window.webContents, 'native-theme-updated')
-    })
+    const onThemeUpdated = () => {
+      if (!this.window.isDestroyed()) {
+        ipcWebContents.send(this.window.webContents, 'native-theme-updated')
+      }
+    }
+    nativeTheme.addListener('updated', onThemeUpdated)
 
-    ipcMain.on('update-window-background-color', (_, color) => {
-      this.window.setBackgroundColor(color)
+    const onUpdateBgColor = (
+      event: Electron.IpcMainEvent,
+      color: string
+    ) => {
+      if (event.sender.id === this.window.webContents.id) {
+        this.window.setBackgroundColor(color)
+      }
+    }
+    ipcMain.on('update-window-background-color', onUpdateBgColor)
+
+    this.window.on('closed', () => {
+      ipcMain.off('renderer-ready', onRendererReady)
+      ipcMain.off('update-window-background-color', onUpdateBgColor)
+      nativeTheme.removeListener('updated', onThemeUpdated)
     })
 
     this.setupAutoUpdater()
@@ -409,41 +459,65 @@ export class AppWindow {
   }
 
   public setupAutoUpdater() {
-    autoUpdater.on('error', (error: Error) => {
+    const onError = (error: Error) => {
       this.isDownloadingUpdate = false
-      ipcWebContents.send(this.window.webContents, 'auto-updater-error', error)
-    })
+      if (!this.window.isDestroyed()) {
+        ipcWebContents.send(this.window.webContents, 'auto-updater-error', error)
+      }
+    }
 
-    autoUpdater.on('checking-for-update', () => {
+    const onCheckingForUpdate = () => {
       this.isDownloadingUpdate = false
-      ipcWebContents.send(
-        this.window.webContents,
-        'auto-updater-checking-for-update'
-      )
-    })
+      if (!this.window.isDestroyed()) {
+        ipcWebContents.send(
+          this.window.webContents,
+          'auto-updater-checking-for-update'
+        )
+      }
+    }
 
-    autoUpdater.on('update-available', () => {
+    const onUpdateAvailable = () => {
       this.isDownloadingUpdate = true
-      ipcWebContents.send(
-        this.window.webContents,
-        'auto-updater-update-available'
-      )
-    })
+      if (!this.window.isDestroyed()) {
+        ipcWebContents.send(
+          this.window.webContents,
+          'auto-updater-update-available'
+        )
+      }
+    }
 
-    autoUpdater.on('update-not-available', () => {
+    const onUpdateNotAvailable = () => {
       this.isDownloadingUpdate = false
-      ipcWebContents.send(
-        this.window.webContents,
-        'auto-updater-update-not-available'
-      )
-    })
+      if (!this.window.isDestroyed()) {
+        ipcWebContents.send(
+          this.window.webContents,
+          'auto-updater-update-not-available'
+        )
+      }
+    }
 
-    autoUpdater.on('update-downloaded', () => {
+    const onUpdateDownloaded = () => {
       this.isDownloadingUpdate = false
-      ipcWebContents.send(
-        this.window.webContents,
-        'auto-updater-update-downloaded'
-      )
+      if (!this.window.isDestroyed()) {
+        ipcWebContents.send(
+          this.window.webContents,
+          'auto-updater-update-downloaded'
+        )
+      }
+    }
+
+    autoUpdater.on('error', onError)
+    autoUpdater.on('checking-for-update', onCheckingForUpdate)
+    autoUpdater.on('update-available', onUpdateAvailable)
+    autoUpdater.on('update-not-available', onUpdateNotAvailable)
+    autoUpdater.on('update-downloaded', onUpdateDownloaded)
+
+    this.window.on('closed', () => {
+      autoUpdater.removeListener('error', onError)
+      autoUpdater.removeListener('checking-for-update', onCheckingForUpdate)
+      autoUpdater.removeListener('update-available', onUpdateAvailable)
+      autoUpdater.removeListener('update-not-available', onUpdateNotAvailable)
+      autoUpdater.removeListener('update-downloaded', onUpdateDownloaded)
     })
   }
 
