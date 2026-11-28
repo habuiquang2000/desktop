@@ -231,13 +231,12 @@ export class CustomScriptDropdown extends React.Component<
         s.command.toLowerCase() === trimmed.toLowerCase()
     )
 
-    const targetScript: ICustomProjectScript =
-      match ?? {
-        id: `adhoc-${Date.now()}`,
-        name: trimmed,
-        command: trimmed,
-        source: 'custom',
-      }
+    const targetScript: ICustomProjectScript = match ?? {
+      id: `adhoc-${Date.now()}`,
+      name: trimmed,
+      command: trimmed,
+      source: 'custom',
+    }
 
     this.setState({ quickCommand: '', searchFilter: '' })
     this.props.dispatcher.closeFoldout(FoldoutType.CustomScript)
@@ -320,7 +319,7 @@ export class CustomScriptDropdown extends React.Component<
               title="Quick Search Command Palette (Ctrl+K)"
             >
               <Octicon symbol={octicons.search} />
-              Quick Search
+              <span className="header-btn-text">Quick Search</span>
             </button>
             <button
               type="button"
@@ -329,7 +328,7 @@ export class CustomScriptDropdown extends React.Component<
               title="Add Custom Script"
             >
               <Octicon symbol={octicons.plus} />
-              Add
+              <span className="header-btn-text">Add</span>
             </button>
             <button
               type="button"
@@ -338,7 +337,7 @@ export class CustomScriptDropdown extends React.Component<
               title="View Output Console"
             >
               <Octicon symbol={octicons.terminal} />
-              Logs
+              <span className="header-btn-text">Logs</span>
             </button>
           </div>
         </div>
@@ -653,11 +652,13 @@ export class CustomScriptDropdown extends React.Component<
         onDropdownStateChanged={onDropDownStateChanged}
         dropdownContentRenderer={this.renderDropdownContent}
         dropdownState={isOpen ? 'open' : 'closed'}
+        dropdownHorizontalAlign="right"
         enableFocusTrap={enableFocusTrap}
         disabled={disabled}
         foldoutStyleOverrides={{
           width: 360,
-          maxWidth: '92vw',
+          maxWidth: 'calc(100vw - 20px)',
+          minWidth: 0,
           height: 'auto',
           maxHeight: 'calc(100vh - 45px)',
         }}

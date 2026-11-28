@@ -11,12 +11,12 @@
   flex-grow: 0;
   flex-shrink: 0;
 
-  /* See https://css-tricks.com/flexbox-truncated-text/
-   * We need to do this "hack" or else the container will
-   * always grow to fit the intrinsic width of its children
-   * and thus killing our text truncation in the title.
-   */
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: toolbar;
 
   color: var(--toolbar-text-color);
   background-color: var(--toolbar-background-color);
@@ -24,26 +24,72 @@
   .sidebar-section {
     display: flex;
     flex-direction: row;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 45%;
+
+    .toolbar-button {
+      min-width: 0;
+    }
+  }
+
+  .resizable-component {
+    min-width: 0;
+    flex-shrink: 1;
+    max-width: 100%;
   }
 
   .toolbar-button {
     // Fill the available height of the parent
     flex-grow: 1;
     max-height: var(--toolbar-height);
+    min-width: 0;
 
     &.push-pull-button {
       width: 100%;
+      min-width: 0;
     }
     &.branch-toolbar-button {
       width: 100%;
+      min-width: 0;
     }
     &.revert-progress {
       width: 100%;
+      min-width: 0;
     }
     &.toolbar-dropdown-arrow-button {
       width: 39px;
       flex-shrink: 0;
+    }
+  }
+}
+
+@container toolbar (max-width: 760px) {
+  #desktop-app-toolbar {
+    .custom-script-toolbar-dropdown,
+    .remote-toolbar-dropdown {
+      max-width: 80px;
+
+      .toolbar-button .text {
+        display: none;
+      }
+
+      .toolbar-button > button {
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+    }
+  }
+}
+
+@container toolbar (max-width: 550px) {
+  #desktop-app-toolbar {
+    .sidebar-section {
+      max-width: 35%;
+    }
+
+    .resizable-component {
+      min-width: 60px;
     }
   }
 }

@@ -1,9 +1,28 @@
 .remote-toolbar-dropdown {
   max-width: 220px;
+  min-width: 0;
+  flex: 0 1 auto;
 
   .title,
   .description {
     @include ellipsis;
+  }
+
+  @media (max-width: 900px) {
+    max-width: 160px;
+  }
+
+  @media (max-width: 768px) {
+    max-width: 80px;
+
+    .toolbar-button .text {
+      display: none;
+    }
+
+    .toolbar-button > button {
+      padding-left: 8px;
+      padding-right: 8px;
+    }
   }
 }
 

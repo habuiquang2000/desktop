@@ -8,6 +8,7 @@
 
   // Fill the available height of the parent
   flex-grow: 1;
+  flex-shrink: 1;
 
   & > .toolbar-button {
     width: 100%;

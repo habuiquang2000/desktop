@@ -203,4 +203,25 @@ describe('CustomScriptDropdown toolbar component', () => {
     assert.equal(list.textContent?.includes('Alpha Build'), false)
     assert.ok(list.textContent?.includes('Beta Test'))
   })
+
+  it('renders responsive header action buttons with header-btn-text spans', () => {
+    const dispatcher = {} as Dispatcher
+
+    render(
+      <CustomScriptDropdown
+        dispatcher={dispatcher}
+        repository={repository}
+        isOpen={true}
+        onDropDownStateChanged={() => {}}
+        enableFocusTrap={false}
+      />
+    )
+
+    const btnTexts = document.querySelectorAll(
+      '.custom-script-header-btn .header-btn-text'
+    )
+    assert.equal(btnTexts.length, 3)
+    const labels = Array.from(btnTexts).map(el => el.textContent)
+    assert.deepEqual(labels, ['Quick Search', 'Add', 'Logs'])
+  })
 })

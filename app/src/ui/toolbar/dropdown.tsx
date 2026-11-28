@@ -403,16 +403,39 @@ export class ToolbarDropdown extends React.Component<
     const overrides: React.CSSProperties =
       this.props.foldoutStyleOverrides ?? {}
 
+    const targetWidth =
+      typeof overrides.width === 'number'
+        ? overrides.width
+        : typeof overrides.minWidth === 'number'
+        ? overrides.minWidth
+        : rect.width
+
+    const viewportWidth =
+      typeof window !== 'undefined' && window.innerWidth > 0
+        ? window.innerWidth
+        : 1024
+
+    const effectiveTargetWidth =
+      typeof targetWidth === 'number'
+        ? Math.min(targetWidth, viewportWidth - 20)
+        : rect.width
+
     let marginLeft: number | string = rect.left
     if (this.props.dropdownHorizontalAlign === 'right') {
-      const targetWidth =
-        typeof overrides.width === 'number'
-          ? overrides.width
-          : typeof overrides.minWidth === 'number'
-          ? overrides.minWidth
-          : rect.width
-
-      marginLeft = Math.max(10, rect.right - targetWidth)
+      const rightAlignedLeft = rect.right - effectiveTargetWidth
+      marginLeft = Math.max(
+        10,
+        Math.min(rightAlignedLeft, viewportWidth - effectiveTargetWidth - 10)
+      )
+    } else if (
+      typeof targetWidth === 'number' &&
+      rect.left + targetWidth > viewportWidth - 10
+    ) {
+      const rightAlignedLeft = rect.right - effectiveTargetWidth
+      marginLeft = Math.max(
+        10,
+        Math.min(rightAlignedLeft, viewportWidth - effectiveTargetWidth - 10)
+      )
     }
 
     return {

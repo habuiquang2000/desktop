@@ -414,11 +414,13 @@ export class RemoteDropdown extends React.Component<
         onContextMenu={this.onContextMenu}
         dropdownContentRenderer={this.renderDropdownContent}
         dropdownState={currentState}
+        dropdownHorizontalAlign="right"
         enableFocusTrap={enableFocusTrap}
         disabled={disabled || isSwitching}
         foldoutStyleOverrides={{
           width: 320,
-          maxWidth: '90vw',
+          maxWidth: 'calc(100vw - 20px)',
+          minWidth: 0,
           height: 'auto',
           maxHeight: 'calc(100vh - 40px)',
         }}
