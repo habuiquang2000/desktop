@@ -21,6 +21,9 @@ export interface IDraggablePanelBarProps {
 
   /** Custom title / tooltip */
   readonly tooltip?: string
+
+  /** Optional icon to display on the drag ghost */
+  readonly icon?: octicons.OcticonSymbolVariants
 }
 
 interface IDraggablePanelBarState {
@@ -45,7 +48,7 @@ export class DraggablePanelBar extends React.Component<
   private lastScreenY = 0
   private isMouseDown = false
   private barElement: HTMLDivElement | null = null
-  private readonly dragThreshold = 45
+  private readonly dragThreshold = 25
 
   public constructor(props: IDraggablePanelBarProps) {
     super(props)
@@ -93,7 +96,7 @@ export class DraggablePanelBar extends React.Component<
     this.isMouseDown = true
 
     document.addEventListener('mousemove', this.onMouseMove)
-    document.addEventListener('mouseup', this.onMouseUp)
+    document.addEventListener('mouseup', this.onMouseUp, true)
   }
 
   private onMouseMove = (event: MouseEvent) => {
@@ -108,8 +111,8 @@ export class DraggablePanelBar extends React.Component<
     this.lastScreenX = event.screenX
     this.lastScreenY = event.screenY
 
-    // Only activate visual drag overlay once moved past subtle deadzone (> 6px)
-    if (!this.state.isDragging && distance > 6) {
+    // Activate visual drag overlay once moved past subtle deadzone (> 4px)
+    if (!this.state.isDragging && distance > 4) {
       this.setState({
         isDragging: true,
         dragDistance: distance,
@@ -125,12 +128,18 @@ export class DraggablePanelBar extends React.Component<
     }
   }
 
-  private onMouseUp = () => {
+  private onMouseUp = (event: MouseEvent) => {
     this.removeDragListeners()
 
     const wasDragging = this.state.isDragging
     const { dragDistance } = this.state
     this.isMouseDown = false
+
+    if (wasDragging) {
+      // Suppress accidental click actions when releasing from a drag
+      event.preventDefault()
+      event.stopPropagation()
+    }
 
     if (wasDragging && dragDistance >= this.dragThreshold) {
       this.props.onDragOut?.(this.lastScreenX, this.lastScreenY)
@@ -144,11 +153,11 @@ export class DraggablePanelBar extends React.Component<
 
   private removeDragListeners() {
     document.removeEventListener('mousemove', this.onMouseMove)
-    document.removeEventListener('mouseup', this.onMouseUp)
+    document.removeEventListener('mouseup', this.onMouseUp, true)
   }
 
   public render() {
-    const { label, className, onDragOut, disabled, tooltip } = this.props
+    const { label, className, onDragOut, disabled, tooltip, icon } = this.props
     const { isDragging, dragDistance, mouseX, mouseY } = this.state
     const isDetachable = dragDistance >= this.dragThreshold
     const canDrag = Boolean(onDragOut) && !disabled
@@ -156,6 +165,8 @@ export class DraggablePanelBar extends React.Component<
     const defaultTitle = canDrag
       ? `Click and drag bar to undock ${label}`
       : undefined
+
+    const ghostIcon = icon ?? (isDetachable ? octicons.unfold : octicons.grabber)
 
     return (
       <div
@@ -172,7 +183,7 @@ export class DraggablePanelBar extends React.Component<
         {isDragging && (
           <div className="drag-to-detach-ghost-overlay">
             <div
-              className={classNames('drag-to-detach-ghost', {
+              className={classNames('drag-to-detach-ghost', 'chrome-tab-ghost', {
                 ready: isDetachable,
               })}
               style={{
@@ -180,10 +191,11 @@ export class DraggablePanelBar extends React.Component<
                 top: mouseY + 16,
               }}
             >
-              <Octicon
-                symbol={isDetachable ? octicons.unfold : octicons.grabber}
-              />
-              <span>
+              <div className="ghost-header">
+                <Octicon symbol={ghostIcon} className="ghost-icon" />
+                <span className="ghost-title">{label}</span>
+              </div>
+              <span className="ghost-instruction">
                 {isDetachable
                   ? `Release to undock ${label}`
                   : `Drag outward to undock ${label}`}

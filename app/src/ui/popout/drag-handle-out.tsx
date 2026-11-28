@@ -42,7 +42,7 @@ export class DragHandleOut extends React.Component<
   private startY = 0
   private lastScreenX = 0
   private lastScreenY = 0
-  private readonly dragThreshold = 45
+  private readonly dragThreshold = 25
 
   public constructor(props: IDragHandleOutProps) {
     super(props)
